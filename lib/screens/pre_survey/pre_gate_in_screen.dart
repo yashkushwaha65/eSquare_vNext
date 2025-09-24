@@ -1,4 +1,4 @@
-// lib/screens/pre_gate_in_screen.dart
+// lib/screens/pre_survey/pre_gate_in_screen.dart
 import 'package:esquare/providers/pre_gate_inPdr.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
@@ -29,34 +29,38 @@ class PreGateInScreen extends StatefulWidget {
 class _PreGateInScreenState extends State<PreGateInScreen>
     with TickerProviderStateMixin {
   late TabController _tabController;
+  late PreGateInProvider _provider;
+  late VoidCallback _containerNoListener;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
 
-    // Use a post-frame callback to safely access the provider and fetch data
+    _provider = Provider.of<PreGateInProvider>(context, listen: false);
+
+    _containerNoListener = () {
+      _provider.validateContainer(_provider.containerNoController.text);
+    };
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = Provider.of<PreGateInProvider>(context, listen: false);
+      _provider.fetchDropdowns();
 
-      // Explicitly trigger the data fetch when the screen is ready
-      provider.fetchDropdowns();
-
-      // Move listener setup here as well
-      provider.grossWtController.addListener(provider.calculatePayload);
-      provider.tareWtController.addListener(provider.calculatePayload);
-      provider.containerNoController.addListener(() {
-        provider.validateContainer(provider.containerNoController.text);
-      });
+      _provider.grossWtController.addListener(_provider.calculatePayload);
+      _provider.tareWtController.addListener(_provider.calculatePayload);
+      _provider.containerNoController.addListener(_containerNoListener);
 
       if (widget.editingSurvey != null) {
-        provider.loadFromSurvey(widget.editingSurvey!);
+        _provider.loadFromSurvey(widget.editingSurvey!);
       }
     });
   }
 
   @override
   void dispose() {
+    _provider.grossWtController.removeListener(_provider.calculatePayload);
+    _provider.tareWtController.removeListener(_provider.calculatePayload);
+    _provider.containerNoController.removeListener(_containerNoListener);
     _tabController.dispose();
     super.dispose();
   }
@@ -70,7 +74,6 @@ class _PreGateInScreenState extends State<PreGateInScreen>
         final provider = Provider.of<PreGateInProvider>(context, listen: false);
         provider.resetFields();
       },
-
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Pre-Gate In Survey'),
@@ -113,20 +116,25 @@ class _PreGateInScreenState extends State<PreGateInScreen>
                         );
                       }
                     },
-
               child: provider.isLoading
                   ? Lottie.asset('assets/anims/loading.json')
                   : const Text('Submit', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
-
         body: provider.isDropdownsLoading
             ? Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const CircularProgressIndicator(),
+                    SizedBox(
+                      height: 150,
+                      width: 150,
+                      child: Lottie.asset(
+                        'assets/anims/loading.json',
+                        repeat: true,
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     Text(
                       'Loading survey data...',

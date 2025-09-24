@@ -8,7 +8,7 @@ import 'package:esquare/providers/pre_gate_in_summarayPdr.dart';
 import 'package:esquare/screens/login_screens.dart';
 import 'package:esquare/screens/post_survey/post_gate_in_summary_screen.dart';
 import 'package:esquare/screens/pre_survey/pre_gate_in_screen.dart';
-import 'package:esquare/screens/pre_survey/pre_gate_in_summary_screen.dart';
+import 'package:esquare/screens/pre_survey/pre_gate_in_summary/pre_gate_in_summary_screen.dart';
 import 'package:esquare/splashscreen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';

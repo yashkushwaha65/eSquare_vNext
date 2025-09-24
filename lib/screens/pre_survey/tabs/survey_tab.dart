@@ -171,6 +171,7 @@ class SurveyTab extends StatelessWidget {
         hint: 'A, B, C, or D.',
         isRequired: true,
         maxLength: 1,
+        uppercase: true,
         inputFormatters: [
           FilteringTextInputFormatter.allow(RegExp(r'[A-D]')),
           UpperCaseTextFormatter(),

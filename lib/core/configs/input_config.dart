@@ -1,4 +1,4 @@
-// lib/configs/input_configs.dart
+// lib/core/configs/input_config.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -37,7 +37,7 @@ abstract class InputConfig {
 class TextInputConfig extends InputConfig {
   final TextInputType keyboardType;
   final bool uppercase;
-  final int? maxLength; // Add this line
+  final int? maxLength;
   final List<TextInputFormatter>? inputFormatters;
 
   TextInputConfig({
@@ -68,9 +68,9 @@ class TextInputConfig extends InputConfig {
       child: TextField(
         controller: controller,
         focusNode: focusNode,
-        // --- 2. USE the parameter here ---
         maxLength: maxLength,
-        // Add this line
+        inputFormatters: inputFormatters,
+        // This line is now correctly added
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
@@ -86,11 +86,7 @@ class TextInputConfig extends InputConfig {
             text: finalValue,
             selection: TextSelection.collapsed(offset: finalValue.length),
           );
-          onChanged?.call(
-            keyboardType == TextInputType.number
-                ? double.tryParse(finalValue) ?? 0
-                : finalValue,
-          );
+          onChanged?.call(finalValue);
         },
         onSubmitted: (value) {
           if (uppercase) value = value.toUpperCase();

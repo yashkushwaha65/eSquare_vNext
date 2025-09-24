@@ -3,8 +3,11 @@ import 'dart:io';
 
 import 'package:esquare/core/models/photoMdl.dart';
 import 'package:esquare/core/models/userMdl.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
@@ -13,6 +16,89 @@ import 'package:path_provider/path_provider.dart' as path_provider;
 import '../api_endpoints.dart';
 import '../core/models/surveyMdl.dart';
 import '../core/services/api_services.dart';
+
+// Helper function to calculate the width of the text
+num textWidth(img.BitmapFont font, String text) {
+  num width = 0;
+  for (var c in text.codeUnits) {
+    if (font.characters.containsKey(c)) {
+      width += font.characters[c]!.xAdvance;
+    }
+  }
+  return width;
+}
+
+// Helper function to process the image in the background
+Future<File?> _processImageInBackground(Map<String, dynamic> args) async {
+  final String filePath = args['filePath'];
+  final RootIsolateToken token = args['token'];
+
+  BackgroundIsolateBinaryMessenger.ensureInitialized(token);
+
+  final tempDir = await path_provider.getTemporaryDirectory();
+  final originalFile = File(filePath);
+  final image = img.decodeImage(await originalFile.readAsBytes());
+  if (image == null) return null;
+
+  // --- NEW LOGIC FOR LARGER, SCALED TIMESTAMP ---
+
+  final timestamp = DateFormat('dd-MM-yyyy HH:mm').format(DateTime.now());
+  final font = img.arial48; // Use the largest base font for best quality
+
+  // 1. Create a temporary, transparent image to draw the text on.
+  final textImage = img.Image(
+    width: textWidth(font, timestamp).toInt(),
+    height: font.lineHeight,
+  );
+
+  // 2. Draw the white text onto the temporary image.
+  img.drawString(
+    textImage,
+    timestamp,
+    font: font,
+    color: img.ColorRgb8(255, 255, 255),
+  );
+
+  // 3. Calculate a dynamic scale factor. Target width is 40% of the main image.
+  double targetWidth = image.width * 0.40;
+  double scale = targetWidth / textImage.width;
+  if (scale < 1.0) scale = 1.0; // Don't make it smaller than the original
+
+  final scaledTextImage = img.copyResize(
+    textImage,
+    width: (textImage.width * scale).round(),
+    height: (textImage.height * scale).round(),
+    interpolation: img.Interpolation.linear,
+  );
+
+  // 4. Define position and padding
+  const padding = 20;
+  final xPos = image.width - scaledTextImage.width - padding;
+  final yPos = image.height - scaledTextImage.height - padding;
+
+  // 5. Add a semi-transparent background for better readability.
+  img.fillRect(
+    image,
+    x1: xPos - 10,
+    // Background padding
+    y1: yPos - 10,
+    x2: xPos + scaledTextImage.width + 10,
+    y2: yPos + scaledTextImage.height + 10,
+    color: img.ColorRgba8(0, 0, 0, 150),
+    // Semi-transparent black
+    radius: 10,
+  );
+
+  // 6. Draw the scaled text image onto the main image.
+  img.compositeImage(image, scaledTextImage, dstX: xPos, dstY: yPos);
+
+  // Save the modified image to a new file
+  final timestampedFile = File(
+    p.join(tempDir.path, '${p.basename(filePath)}_timestamped.jpg'),
+  );
+  await timestampedFile.writeAsBytes(img.encodeJpg(image));
+  return timestampedFile;
+}
 
 class PreGateInProvider extends ChangeNotifier {
   // ADD THIS NEW FLAG for container validation
@@ -61,6 +147,7 @@ class PreGateInProvider extends ChangeNotifier {
   // State
   List<Photo> photos = [];
   bool isLoading = false;
+  bool isProcessingImage = false;
   double? payload;
   bool containerValid = false;
 
@@ -101,6 +188,7 @@ class PreGateInProvider extends ChangeNotifier {
   List<dynamic> docTypes = [];
   bool hasValidatedShippingLine = false;
   bool _isDropdownsLoading = false;
+
   bool get isDropdownsLoading => _isDropdownsLoading;
 
   // Auto-populated
@@ -134,7 +222,7 @@ class PreGateInProvider extends ChangeNotifier {
       final formatRegex = RegExp(r'^[A-Z]{4}[0-9]{7}$');
       if (!formatRegex.hasMatch(containerNoController.text.trim())) {
         errors['containerNo'] =
-        'Format must be 4 letters and 7 digits (e.g., MSCU1234567)';
+            'Format must be 4 letters and 7 digits (e.g., MSCU1234567)';
       }
     }
 
@@ -248,6 +336,8 @@ class PreGateInProvider extends ChangeNotifier {
     super.dispose();
   }
 
+  // lib/providers/pre_gate_inPdr.dart
+
   void resetFields() {
     setInitialSurveyDateTime();
     containerNoController.clear();
@@ -269,6 +359,8 @@ class PreGateInProvider extends ChangeNotifier {
     doValidityDateController.clear();
     photos.clear();
     containerValues.clear();
+    transporterValues.clear(); // Added
+    surveyValues.clear(); // Added
     selectedIsoId = null;
     selectedSlId = null;
     selectedTransId = null;
@@ -282,6 +374,9 @@ class PreGateInProvider extends ChangeNotifier {
     category = '';
     payload = null;
     containerValid = false;
+    hasValidatedShippingLine = false; // Added
+    conditions = []; // Added
+    makes = []; // Added
     errors.clear();
     notifyListeners();
   }
@@ -351,8 +446,8 @@ class PreGateInProvider extends ChangeNotifier {
     if (isoCodeText.isEmpty) return true; // Allow empty for now
 
     final foundIso = isoCodes.any(
-          (iso) =>
-      (iso['ISOCode'] as String).toUpperCase() == isoCodeText.toUpperCase(),
+      (iso) =>
+          (iso['ISOCode'] as String).toUpperCase() == isoCodeText.toUpperCase(),
     );
 
     return foundIso;
@@ -363,8 +458,8 @@ class PreGateInProvider extends ChangeNotifier {
     if (shippingLineText.isEmpty) return true; // Allow empty for now
 
     final foundShippingLine = shippingLines.any(
-          (sl) =>
-      (sl['SLName'] as String).toLowerCase() ==
+      (sl) =>
+          (sl['SLName'] as String).toLowerCase() ==
           shippingLineText.toLowerCase(),
     );
 
@@ -376,7 +471,7 @@ class PreGateInProvider extends ChangeNotifier {
     if (shippingLineId == null || shippingLineId.isEmpty) return true;
 
     final foundShippingLine = shippingLines.any(
-          (sl) => sl['SLID'].toString() == shippingLineId,
+      (sl) => sl['SLID'].toString() == shippingLineId,
     );
 
     return foundShippingLine;
@@ -387,8 +482,8 @@ class PreGateInProvider extends ChangeNotifier {
     if (transporterText.isEmpty) return true; // Allow empty for now
 
     final foundTransporter = transporters.any(
-          (t) =>
-      (t['TransporterName'] as String).toLowerCase() ==
+      (t) =>
+          (t['TransporterName'] as String).toLowerCase() ==
           transporterText.toLowerCase(),
     );
 
@@ -400,7 +495,7 @@ class PreGateInProvider extends ChangeNotifier {
     if (transporterId == null || transporterId.isEmpty) return true;
 
     final foundTransporter = transporters.any(
-          (t) => t['TransID'].toString() == transporterId,
+      (t) => t['TransID'].toString() == transporterId,
     );
 
     return foundTransporter;
@@ -420,7 +515,7 @@ class PreGateInProvider extends ChangeNotifier {
     if (surveyTypeId == null || surveyTypeId.isEmpty) return true;
 
     final foundSurveyType = surveyTypes.any(
-          (st) => st['ID'].toString() == surveyTypeId,
+      (st) => st['ID'].toString() == surveyTypeId,
     );
 
     return foundSurveyType;
@@ -431,7 +526,7 @@ class PreGateInProvider extends ChangeNotifier {
     if (containerStatusId == null || containerStatusId.isEmpty) return true;
 
     final foundContainerStatus = containerStatus.any(
-          (cs) => cs['ID'].toString() == containerStatusId,
+      (cs) => cs['ID'].toString() == containerStatusId,
     );
 
     return foundContainerStatus;
@@ -442,7 +537,7 @@ class PreGateInProvider extends ChangeNotifier {
     if (conditionId == null || conditionId.isEmpty) return true;
 
     final foundCondition = conditions.any(
-          (c) => c['ID'].toString() == conditionId,
+      (c) => c['ID'].toString() == conditionId,
     );
 
     return foundCondition;
@@ -465,8 +560,8 @@ class PreGateInProvider extends ChangeNotifier {
       selectedMakeId = null;
 
       final foundIso = isoCodes.firstWhere(
-            (i) =>
-        i['ISOCode'].toString().toUpperCase() == isoCodeText.toUpperCase(),
+        (i) =>
+            i['ISOCode'].toString().toUpperCase() == isoCodeText.toUpperCase(),
         orElse: () => null,
       );
 
@@ -551,10 +646,10 @@ class PreGateInProvider extends ChangeNotifier {
     selectedContainerStatusId = statusId;
 
     final status =
-    containerStatus.firstWhere(
-          (c) => c['ID'].toString() == statusId,
-    )['Status']
-    as String;
+        containerStatus.firstWhere(
+              (c) => c['ID'].toString() == statusId,
+            )['Status']
+            as String;
 
     final response = await _apiService.postRequest(ApiEndpoints.getCondition, {
       "ID": int.parse(statusId),
@@ -653,7 +748,7 @@ class PreGateInProvider extends ChangeNotifier {
   String _getContainerStatusDisplay(String? statusId) {
     if (statusId == null) return '';
     final found = containerStatus.firstWhere(
-          (cs) => cs['ID'].toString() == statusId,
+      (cs) => cs['ID'].toString() == statusId,
       orElse: () => null,
     );
     return found != null ? found['Status'].toString() : '';
@@ -662,17 +757,20 @@ class PreGateInProvider extends ChangeNotifier {
   String _getConditionDisplay(String? conditionId) {
     if (conditionId == null) return '';
     final found = conditions.firstWhere(
-          (c) => c['ID'].toString() == conditionId,
+      (c) => c['ID'].toString() == conditionId,
       orElse: () => null,
     );
     return found != null ? found['Condition'].toString() : '';
   }
 
   Future<void> pickAndProcessImages(
-      ImageSource source,
-      String docName,
-      String description,
-      ) async {
+    ImageSource source,
+    String docName,
+    String description,
+  ) async {
+    isProcessingImage = true;
+    notifyListeners();
+
     final ImagePicker picker = ImagePicker();
     final List<XFile> pickedFiles;
     if (source == ImageSource.gallery) {
@@ -682,12 +780,23 @@ class PreGateInProvider extends ChangeNotifier {
       pickedFiles = pickedFile != null ? [pickedFile] : [];
     }
 
-    if (pickedFiles.isEmpty) return;
+    if (pickedFiles.isEmpty) {
+      isProcessingImage = false;
+      notifyListeners();
+      return;
+    }
 
     final tempDir = await path_provider.getTemporaryDirectory();
+    final RootIsolateToken token = RootIsolateToken.instance!;
 
     for (var file in pickedFiles) {
       if (photos.length >= 50) break;
+
+      final timestampedFile = await compute(_processImageInBackground, {
+        'filePath': file.path,
+        'token': token,
+      });
+      if (timestampedFile == null) continue;
 
       final String fileNameWithoutExt = p.basenameWithoutExtension(file.path);
       final String targetPath = p.join(
@@ -696,12 +805,12 @@ class PreGateInProvider extends ChangeNotifier {
       );
 
       final XFile? compressedFile =
-      await FlutterImageCompress.compressAndGetFile(
-        file.path,
-        targetPath,
-        quality: 50,
-        format: CompressFormat.jpeg,
-      );
+          await FlutterImageCompress.compressAndGetFile(
+            timestampedFile.path,
+            targetPath,
+            quality: 25,
+            format: CompressFormat.jpeg,
+          );
 
       if (compressedFile != null) {
         photos.add(
@@ -716,6 +825,7 @@ class PreGateInProvider extends ChangeNotifier {
       }
     }
 
+    isProcessingImage = false;
     notifyListeners();
   }
 
