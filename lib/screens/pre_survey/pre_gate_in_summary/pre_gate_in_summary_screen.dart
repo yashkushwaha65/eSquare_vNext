@@ -1,3 +1,5 @@
+// lib/screens/pre_survey/pre_gate_in_summary_screen.dart
+
 import 'dart:convert';
 
 import 'package:esquare/core/models/pre_gate_in_summaryMdl.dart';
@@ -174,10 +176,12 @@ class _PreGateInSummaryPageState extends State<PreGateInSummaryPage>
   }
 
   void _navigateToEditPage(PreGateInSummary item) {
-    // TODO: Navigate to edit page
-    // Example: Navigator.pushNamed(context, '/edit-gate-summary', arguments: item);
-
-    // Temporary implementation showing navigation intent
+    // Navigator.pushReplacement(
+    //   context,
+    //   MaterialPageRoute(
+    //     builder: (context) => SurveyImagesPage(surveyID: 16, buid: 3),
+    //   ),
+    // );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Opening edit page for ${item.containerNo}'),
@@ -470,7 +474,7 @@ class _PreGateInSummaryPageState extends State<PreGateInSummaryPage>
               flex: 2,
               child: DropdownButtonFormField<String>(
                 isExpanded: true,
-                initialValue: searchCriteria,
+                value: searchCriteria,
                 decoration: const InputDecoration(
                   labelText: 'Search By',
                   prefixIcon: Icon(
@@ -643,117 +647,93 @@ class _PreGateInSummaryPageState extends State<PreGateInSummaryPage>
                 borderRadius: BorderRadius.circular(16),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Row(
+                  child: Column(
                     children: [
-                      // Icon Container
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Colors.blue, AppTheme.primaryColor],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(
-                          Icons.local_shipping,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-
-                      // Content
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Survey No: ${item.surveyNo}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF212121),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Container: ${item.containerNo}',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF424242),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Size/Type: ${item.size} ${item.containerType}',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF616161),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.calendar_today,
-                                  size: 12,
-                                  color: Colors.grey,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  item.surveyDate,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'SLID: ${item.lineName}',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF616161),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Right Side
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                      Row(
                         children: [
+                          // Icon Container
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
+                            width: 56,
+                            height: 56,
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [Colors.blue, AppTheme.primaryColor],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                            child: Text(
-                              '${item.payLoad.toStringAsFixed(0)} kg',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
+                            child: const Icon(
+                              Icons.local_shipping,
+                              color: Colors.white,
+                              size: 28,
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(width: 16),
+
+                          // Content
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Survey No: ${item.surveyNo}',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF212121),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Container: ${item.containerNo}',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF424242),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Size/Type: ${item.size} ${item.containerType}',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF616161),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.calendar_today,
+                                      size: 12,
+                                      color: Colors.grey,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      item.surveyDate,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'SLID: ${item.lineName}',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF616161),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Right Side
                           Container(
                             decoration: BoxDecoration(
                               color: const Color(0xFFF5F5F5),
@@ -774,6 +754,86 @@ class _PreGateInSummaryPageState extends State<PreGateInSummaryPage>
                           ),
                         ],
                       ),
+                      if (item.attachments.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 120,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: item.attachments.length,
+                            itemBuilder: (context, index) {
+                              final attachment = item.attachments[index];
+                              final imageUrl = attachment.filePath1;
+                              debugPrint("Loading image from URL: $imageUrl");
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8.0),
+                                child: GestureDetector(
+                                  onTap: () {
+                                    // Optionally, open full image view
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => Dialog(
+                                        child: Image.network(imageUrl),
+                                      ),
+                                    );
+                                  },
+                                  child: Container(
+                                    width: 100,
+                                    height: 100,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.1),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Image.network(
+                                        imageUrl,
+                                        fit: BoxFit.cover,
+                                        loadingBuilder: (context, child, loadingProgress) {
+                                          if (loadingProgress == null)
+                                            return child;
+                                          return Center(
+                                            child: CircularProgressIndicator(
+                                              value:
+                                                  loadingProgress
+                                                          .expectedTotalBytes !=
+                                                      null
+                                                  ? loadingProgress
+                                                            .cumulativeBytesLoaded /
+                                                        loadingProgress
+                                                            .expectedTotalBytes!
+                                                  : null,
+                                              color: AppTheme.primaryColor,
+                                            ),
+                                          );
+                                        },
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
+                                              debugPrint(
+                                                "Error loading image: $error",
+                                              );
+                                              return const Center(
+                                                child: Icon(
+                                                  Icons.image_not_supported,
+                                                  color: Colors.grey,
+                                                ),
+                                              );
+                                            },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -847,6 +907,53 @@ class _PreGateInSummaryPageState extends State<PreGateInSummaryPage>
                   _buildDetailRow('Container Status', item.containerStatus),
                   _buildDetailRow('Condition', item.condition),
                 ]),
+
+                if (item.attachments.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _buildDetailSection('Attachments', [
+                    SizedBox(
+                      height: 200,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: item.attachments.length,
+                        itemBuilder: (context, index) {
+                          final attachment = item.attachments[index];
+                          final imageUrl = attachment.filePath1;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: GestureDetector(
+                              onTap: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) =>
+                                      Dialog(child: Image.network(imageUrl)),
+                                );
+                              },
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.network(
+                                  imageUrl,
+                                  width: 150,
+                                  fit: BoxFit.cover,
+                                  loadingBuilder:
+                                      (context, child, loadingProgress) {
+                                        if (loadingProgress == null)
+                                          return child;
+                                        return const Center(
+                                          child: CircularProgressIndicator(),
+                                        );
+                                      },
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Icon(Icons.error),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ]),
+                ],
 
                 const SizedBox(height: 32),
 
