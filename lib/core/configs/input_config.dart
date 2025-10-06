@@ -32,8 +32,6 @@ abstract class InputConfig {
   });
 }
 
-/// Configuration for text input fields.
-// Updated TextInputConfig class
 class TextInputConfig extends InputConfig {
   final TextInputType keyboardType;
   final bool uppercase;
@@ -53,26 +51,38 @@ class TextInputConfig extends InputConfig {
 
   @override
   Widget buildWidget(
-    BuildContext context,
-    dynamic value,
-    ValueChanged<dynamic>? onChanged,
-    String? error,
-    TextEditingController? controller, {
-    bool readOnly = false,
-    ValueChanged<String>? onCompleted,
-    ValueChanged<String>? onSubmitted,
-    FocusNode? focusNode, // --- 1. ADD this parameter ---
-  }) {
+      BuildContext context,
+      dynamic value,
+      ValueChanged<dynamic>? onChanged,
+      String? error,
+      TextEditingController? controller, {
+        bool readOnly = false,
+        ValueChanged<String>? onCompleted,
+        ValueChanged<String>? onSubmitted,
+        FocusNode? focusNode,
+      }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
-      child: TextField(
+      child: TextFormField( // Changed from TextField to TextFormField
         controller: controller,
         focusNode: focusNode,
         maxLength: maxLength,
         inputFormatters: inputFormatters,
-        // This line is now correctly added
         decoration: InputDecoration(
-          labelText: label,
+          label: isRequired
+              ? RichText(
+            text: TextSpan(
+              text: label,
+              style: DefaultTextStyle.of(context).style,
+              children: const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ],
+            ),
+          )
+              : Text(label),
           hintText: hint,
           errorText: error,
           border: const OutlineInputBorder(),
@@ -88,10 +98,18 @@ class TextInputConfig extends InputConfig {
           );
           onChanged?.call(finalValue);
         },
-        onSubmitted: (value) {
+        onFieldSubmitted: (value) {
           if (uppercase) value = value.toUpperCase();
           onSubmitted?.call(value);
         },
+        validator: isRequired // Added validator for required fields
+            ? (value) {
+          if (value == null || value.isEmpty) {
+            return '$label is required';
+          }
+          return null;
+        }
+            : null,
       ),
     );
   }
@@ -101,6 +119,7 @@ class TextInputConfig extends InputConfig {
 class SelectInputConfig extends InputConfig {
   final List<Map<String, String>> options; // value: display
   final Function(String)? onValidationFailed;
+  final VoidCallback? onTap; // ADD THIS LINE
 
   SelectInputConfig({
     required super.key,
@@ -108,6 +127,7 @@ class SelectInputConfig extends InputConfig {
     super.isRequired = false,
     required this.options,
     this.onValidationFailed,
+    this.onTap, // ADD THIS LINE
   });
 
   @override
@@ -120,51 +140,86 @@ class SelectInputConfig extends InputConfig {
     bool readOnly = false,
     ValueChanged<String>? onCompleted,
   }) {
-    final List<DropdownMenuItem<String>> dropdownItems = options
-        .where((opt) => opt['value'] != null && opt['display'] != null)
-        .map(
-          (opt) => DropdownMenuItem<String>(
-            value: opt['value'],
-            child: Text(opt['display']!.toUpperCase()),
-          ),
-        )
-        .toList();
-
-    String? effectiveValue = (value != null && value.toString().isNotEmpty)
-        ? value.toString()
-        : null;
-
-    // Prevent invalid value being set
-    if (effectiveValue != null &&
-        !dropdownItems.any((item) => item.value == effectiveValue)) {
-      effectiveValue = null;
+    // Step 1: Create a list of dropdown items with absolutely no duplicate values.
+    final seenValues = <String>{};
+    final List<DropdownMenuItem<String>> uniqueDropdownItems = [];
+    for (var opt in options) {
+      final optValue = opt['value'];
+      final optDisplay = opt['display'];
+      if (optValue != null && optDisplay != null) {
+        if (seenValues.add(optValue)) {
+          // This ensures each value is added only once
+          uniqueDropdownItems.add(
+            DropdownMenuItem<String>(
+              value: optValue,
+              child: Text(optDisplay.toUpperCase()),
+            ),
+          );
+        }
+      }
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: DropdownButtonFormField<String>(
-        initialValue: effectiveValue,
-        decoration: InputDecoration(
-          labelText: label,
-          errorText: error,
-          border: const OutlineInputBorder(),
+    String? currentValue = value?.toString();
+
+    // Step 2: CRITICAL FIX - Check if the dropdown's current value actually exists
+    // in the new list of items we just created.
+    final isValueInItems =
+        currentValue != null &&
+        uniqueDropdownItems.any((item) => item.value == currentValue);
+
+    // Step 3: Determine the "safe" value to pass to the dropdown widget.
+    // If the current value is not in the list, we MUST pass null to avoid a crash.
+    final String? effectiveValue = isValueInItems ? currentValue : null;
+
+    // Step 4: If we had to nullify the value, we should also update the provider's state
+    // to match. We do this *after* the build is complete to avoid further errors.
+    if (currentValue != null && !isValueInItems) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        onChanged?.call(null);
+      });
+    }
+
+    // Step 5: Build the widget with the guaranteed "safe" value and the unique item list.
+    // We wrap the Dropdown in a GestureDetector to intercept the tap event.
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 16.0),
+        child: DropdownButtonFormField<String>(
+          value: effectiveValue,
+          decoration: InputDecoration(
+            label: isRequired
+                ? RichText(
+              text: TextSpan(
+                text: label,
+                style: DefaultTextStyle.of(context).style,
+                children: const [
+                  TextSpan(
+                    text: ' *',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ],
+              ),
+            )
+                : Text(label),
+            errorText: error,
+            border: const OutlineInputBorder(),
+          ),
+          items: uniqueDropdownItems,
+          onChanged: readOnly
+              ? null
+              : (newValue) {
+            onChanged?.call(newValue);
+          },
+          validator: isRequired
+              ? (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please select a $label';
+            }
+            return null;
+          }
+              : null,
         ),
-        items: dropdownItems,
-        onChanged: readOnly
-            ? null
-            : (newValue) {
-                // Validate the selection
-                if (newValue != null && onValidationFailed != null) {
-                  final isValid = options.any(
-                    (option) => option['value'] == newValue,
-                  );
-                  if (!isValid) {
-                    onValidationFailed!(newValue);
-                    return;
-                  }
-                }
-                onChanged?.call(newValue);
-              },
       ),
     );
   }
@@ -281,7 +336,20 @@ class DateInputConfig extends InputConfig {
                   },
             child: InputDecorator(
               decoration: InputDecoration(
-                labelText: label,
+                label: isRequired
+                    ? RichText(
+                        text: TextSpan(
+                          text: label,
+                          style: DefaultTextStyle.of(context).style,
+                          children: const [
+                            TextSpan(
+                              text: ' *',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Text(label),
                 errorText: error,
                 border: const OutlineInputBorder(),
               ),
@@ -325,10 +393,23 @@ class TextAreaConfig extends InputConfig {
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
-      child: TextField(
+      child: TextFormField(
         controller: TextEditingController(text: value ?? ''),
         decoration: InputDecoration(
-          labelText: label,
+          label: isRequired
+              ? RichText(
+                  text: TextSpan(
+                    text: label,
+                    style: DefaultTextStyle.of(context).style,
+                    children: const [
+                      TextSpan(
+                        text: ' *',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ],
+                  ),
+                )
+              : Text(label),
           hintText: hint,
           errorText: error,
           border: const OutlineInputBorder(),
@@ -336,6 +417,14 @@ class TextAreaConfig extends InputConfig {
         maxLines: 4,
         readOnly: readOnly,
         onChanged: onChanged,
+        validator: isRequired
+            ? (value) {
+                if (value == null || value.isEmpty) {
+                  return '$label is required';
+                }
+                return null;
+              }
+            : null,
       ),
     );
   }
@@ -349,6 +438,7 @@ class SearchableDropdown extends StatelessWidget {
   final String? error;
   final Function(String)? onValidationFailed;
   final String? validationMessage;
+  final bool isRequired;
 
   const SearchableDropdown({
     super.key,
@@ -359,6 +449,7 @@ class SearchableDropdown extends StatelessWidget {
     this.error,
     this.onValidationFailed,
     this.validationMessage,
+    this.isRequired = false,
   });
 
   @override
@@ -408,17 +499,38 @@ class SearchableDropdown extends StatelessWidget {
                 }
               });
 
-              return TextField(
+              return TextFormField(
                 controller: textController,
                 focusNode: focusNode,
                 decoration: InputDecoration(
-                  labelText: label,
+                  label: isRequired
+                      ? RichText(
+                          text: TextSpan(
+                            text: label,
+                            style: DefaultTextStyle.of(context).style,
+                            children: const [
+                              TextSpan(
+                                text: ' *',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ],
+                          ),
+                        )
+                      : Text(label),
                   errorText: error,
                   border: const OutlineInputBorder(),
                 ),
                 onChanged: (newValue) {
                   // No direct onChanged needed
                 },
+                validator: isRequired
+                    ? (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please select a $label';
+                        }
+                        return null;
+                      }
+                    : null,
               );
             },
       ),
@@ -462,6 +574,7 @@ class AutoCompleteInputConfig extends InputConfig {
         value: value,
         readOnly: readOnly,
         controller: controller,
+        isRequired: isRequired,
       ),
     );
   }
@@ -479,6 +592,7 @@ class _AutoCompleteWithFocusValidation extends StatelessWidget {
   final dynamic value;
   final bool readOnly;
   final TextEditingController? controller;
+  final bool isRequired;
 
   const _AutoCompleteWithFocusValidation({
     required this.suggestions,
@@ -490,6 +604,7 @@ class _AutoCompleteWithFocusValidation extends StatelessWidget {
     this.value,
     this.readOnly = false,
     this.controller,
+    this.isRequired = false,
   });
 
   @override
@@ -534,7 +649,20 @@ class _AutoCompleteWithFocusValidation extends StatelessWidget {
                 controller: fieldController,
                 focusNode: fieldFocusNode,
                 decoration: InputDecoration(
-                  labelText: label,
+                  label: isRequired
+                      ? RichText(
+                          text: TextSpan(
+                            text: label,
+                            style: DefaultTextStyle.of(context).style,
+                            children: const [
+                              TextSpan(
+                                text: ' *',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ],
+                          ),
+                        )
+                      : Text(label),
                   hintText: hint,
                   errorText: error,
                   border: const OutlineInputBorder(),
@@ -551,6 +679,14 @@ class _AutoCompleteWithFocusValidation extends StatelessWidget {
                   }
                   onFieldSubmitted();
                 },
+                validator: isRequired
+                    ? (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a $label';
+                        }
+                        return null;
+                      }
+                    : null,
               );
             },
         onSelected: (String selection) {

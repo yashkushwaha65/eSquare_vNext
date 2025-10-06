@@ -294,10 +294,10 @@ class DashboardScreen extends StatelessWidget {
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
-                      Text(
-                        "ID: $buid",
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
+                      // Text(
+                      //   "ID: $buid",
+                      //   style: TextStyle(color: Colors.white70, fontSize: 12),
+                      // ),
                     ],
                   ),
                 ),

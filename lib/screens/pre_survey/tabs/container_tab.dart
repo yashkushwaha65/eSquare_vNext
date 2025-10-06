@@ -15,105 +15,52 @@ class ContainerTab extends StatefulWidget {
 
 class _ContainerTabState extends State<ContainerTab> {
   late final PreGateInProvider _provider;
-  String surveyDateTime = DateFormat(
-    'dd MMM yyyy HH:mm',
-  ).format(DateTime.now());
-
+  final _isoCodeController = TextEditingController();
   final _containerNoFocus = FocusNode();
-  final _isoCodeFocus = FocusNode();
+  final _isoFocus = FocusNode();
+  final _slidFocus = FocusNode();
   final _grossWeightFocus = FocusNode();
   final _tareWeightFocus = FocusNode();
+  final _locationFocus = FocusNode();
   final _mfgYearFocus = FocusNode();
-  final _fromLocationFocus = FocusNode();
-
-  // Add controller for ISO code field
-  final _isoCodeController = TextEditingController();
-
-  // Add validation state to prevent multiple dialogs
-  // bool isValidIsoSelected = false;
   bool _isShowingValidationDialog = false;
-
-  // String _lastValidatedValue = '';
 
   @override
   void initState() {
     super.initState();
     _provider = Provider.of<PreGateInProvider>(context, listen: false);
-
     _provider.grossWtController.addListener(_validateWeights);
     _provider.tareWtController.addListener(_validateWeights);
     _provider.mfgYearController.addListener(_validateMfgYear);
     _containerNoFocus.addListener(_onContainerNoFocusChange);
+    _isoCodeController.text = _provider.containerValues['isoCode'] ?? '';
   }
 
-  // New method to handle focus change for Container No.
   void _onContainerNoFocusChange() async {
+    // --- FIX: Check if the widget is still mounted before proceeding ---
+    if (!mounted) return;
+
     if (!_containerNoFocus.hasFocus) {
-      final provider = Provider.of<PreGateInProvider>(context, listen: false);
-      final value = provider.containerNoController.text;
+      final value = _provider.containerNoController.text;
       final formatRegex = RegExp(r'^[A-Z]{4}[0-9]{7}$');
-      final isFormatValid = formatRegex.hasMatch(value);
-
-      if (value.isNotEmpty && !isFormatValid) {
-        provider.containerValid = false; // Mark invalid
-
-        // MODIFIED: Using your custom CautionDialog for consistency
+      if (value.isNotEmpty && !formatRegex.hasMatch(value)) {
         if (mounted && !_isShowingValidationDialog) {
           _isShowingValidationDialog = true;
           await CautionDialog.show(
             context: context,
             title: 'Invalid Format',
-            message:
-                'Container number is invalid. Please enter a valid container number in the format ABCD1234567.',
+            message: 'Container number format must be ABCD1234567.',
           );
           _isShowingValidationDialog = false;
         }
-        return;
       }
-
-      // API validation
-      final isValidFromApi = await provider.validateContainer(value);
-      provider.containerValid = isValidFromApi;
-
-      if (!isValidFromApi && context.mounted) {
-        _isShowingValidationDialog = true;
-        // This dialog remains an AlertDialog because it needs to return a boolean.
-        final shouldProceed =
-            await showDialog<bool>(
-              context: context,
-              builder: (_) => AlertDialog(
-                title: const Text('Invalid Container Number'),
-                content: const Text(
-                  'Container number is invalid. Do you still want to continue?',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Continue'),
-                  ),
-                ],
-              ),
-            ) ??
-            false;
-        _isShowingValidationDialog = false;
-
-        if (!shouldProceed) {
-          provider.containerValues['containerNo'] = '';
-          provider.containerNoController.clear();
-          _containerNoFocus.requestFocus();
-        } else {
-          provider.containerValid = false;
-        }
-      }
-      FocusScope.of(context).requestFocus(_grossWeightFocus);
     }
   }
 
   void _validateWeights() async {
+    // --- FIX: Check if the widget is still mounted before proceeding ---
+    if (!mounted) return;
+
     final provider = Provider.of<PreGateInProvider>(context, listen: false);
     final String grossText = provider.grossWtController.text;
     final String tareText = provider.tareWtController.text;
@@ -199,6 +146,9 @@ class _ContainerTabState extends State<ContainerTab> {
   }
 
   void _validateMfgYear() async {
+    // --- FIX: Check if the widget is still mounted before proceeding ---
+    if (!mounted) return;
+
     final provider = Provider.of<PreGateInProvider>(context, listen: false);
     final String yearText = provider.mfgYearController.text;
     final int currentYear = DateTime.now().year;
@@ -241,40 +191,32 @@ class _ContainerTabState extends State<ContainerTab> {
     _provider.grossWtController.removeListener(_validateWeights);
     _provider.tareWtController.removeListener(_validateWeights);
     _provider.mfgYearController.removeListener(_validateMfgYear);
-
     _containerNoFocus.removeListener(_onContainerNoFocusChange);
-
     _containerNoFocus.dispose();
-    _isoCodeFocus.dispose();
+    _isoFocus.dispose();
+    _locationFocus.dispose();
+    _slidFocus.dispose();
     _grossWeightFocus.dispose();
     _tareWeightFocus.dispose();
     _mfgYearFocus.dispose();
-    _fromLocationFocus.dispose();
     _isoCodeController.dispose();
-
     super.dispose();
   }
 
   Future<void> _selectDateTime(BuildContext context) async {
     final provider = Provider.of<PreGateInProvider>(context, listen: false);
-
     final DateTime? pickedDate = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
       firstDate: DateTime(DateTime.now().year - 5),
       lastDate: DateTime.now(),
     );
-
-    if (pickedDate == null) return;
-    if (!context.mounted) return;
-
+    if (pickedDate == null || !context.mounted) return;
     final TimeOfDay? pickedTime = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(DateTime.now()),
     );
-
     if (pickedTime == null) return;
-
     final DateTime finalDateTime = DateTime(
       pickedDate.year,
       pickedDate.month,
@@ -282,7 +224,6 @@ class _ContainerTabState extends State<ContainerTab> {
       pickedTime.hour,
       pickedTime.minute,
     );
-
     provider.surveyDateAndTimeController.text = DateFormat(
       'yyyy-MM-dd HH:mm',
     ).format(finalDateTime);
@@ -293,11 +234,7 @@ class _ContainerTabState extends State<ContainerTab> {
     final provider = Provider.of<PreGateInProvider>(context);
 
     return GestureDetector(
-      onTap: () {
-        // Dismiss keyboard and validate ISO code when tapping outside
-        FocusScope.of(context).unfocus();
-        // _validateIsoCodeOnFocusLoss();
-      },
+      onTap: () => FocusScope.of(context).unfocus(),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -313,53 +250,42 @@ class _ContainerTabState extends State<ContainerTab> {
               style: TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 16),
-
             TextFormField(
               controller: provider.surveyDateAndTimeController,
-              readOnly: true, // Prevents keyboard from appearing
+              readOnly: true,
               decoration: const InputDecoration(
-                labelText: 'Survey Date & Time*',
+                labelText: 'Survey Date & Time',
                 border: OutlineInputBorder(),
                 suffixIcon: Icon(Icons.calendar_today),
               ),
-              onTap: () {
-                // Call the picker method when the field is tapped
-                _selectDateTime(context);
-              },
+              onTap: () => _selectDateTime(context),
             ),
-
             const SizedBox(height: 16),
-
-            // USE YOUR NEW WIDGET
-            ContainerNumberField(focusNode: _containerNoFocus),
-
+            ContainerNumberField(
+              focusNode: _containerNoFocus,
+              nextFocusNode: _isoFocus,
+            ),
             const SizedBox(height: 16),
-
-            // ISO Code field with validation
             AutoCompleteInputConfig(
               key: 'isoCode',
-              label: 'ISO Code*',
+              label: 'ISO Code',
               isRequired: true,
               suggestions: provider.isoCodes
                   .map((e) => e['ISOCode'] as String)
                   .toList(),
-              // This callback now handles validation on unfocus
               onFocusChanged: (value) async {
                 final currentValue = value.trim().toUpperCase();
-
-                // Only validate if there is text and it's not a valid code
                 if (currentValue.isNotEmpty &&
                     !provider.validateIsoCode(currentValue)) {
                   if (mounted && !_isShowingValidationDialog) {
                     _isShowingValidationDialog = true;
                     await CautionDialog.showInvalidIsoCode(context);
-
-                    if (mounted) {
-                      _isoCodeController.clear();
-                      provider.containerValues['isoCode'] = '';
-                      provider.selectedIsoId = null;
-                      provider.notifyListeners();
-                    }
+                    // ADDED: Check if the widget is still mounted after the dialog.
+                    if (!mounted) return;
+                    _isoCodeController.clear();
+                    provider.containerValues['isoCode'] = '';
+                    provider.selectedIsoId = null;
+                    provider.notifyListeners();
                     _isShowingValidationDialog = false;
                   }
                 }
@@ -368,16 +294,13 @@ class _ContainerTabState extends State<ContainerTab> {
               context,
               provider.containerValues['isoCode'],
               (value) async {
-                // This `onChanged` logic handles when a user selects an item
-                // or submits the field. It remains the same.
                 final selectedCode = value.toUpperCase();
                 provider.containerValues['isoCode'] = selectedCode;
                 _isoCodeController.text = selectedCode;
 
                 final selectedObj = provider.isoCodes.firstWhere(
                   (e) => (e['ISOCode'] as String).toUpperCase() == selectedCode,
-                  orElse: () =>
-                      <String, dynamic>{}, // Return empty map if not found
+                  orElse: () => <String, dynamic>{},
                 );
 
                 if (selectedObj.isNotEmpty && selectedObj['ISOID'] != null) {
@@ -386,34 +309,27 @@ class _ContainerTabState extends State<ContainerTab> {
                 } else {
                   provider.selectedIsoId = null;
                 }
-
-                // Don't set isValidIsoSelected flag, just validate the value directly.
-
-                FocusScope.of(context).requestFocus(_grossWeightFocus);
+                FocusScope.of(context).requestFocus(_slidFocus);
               },
               provider.errors['isoCode'],
               _isoCodeController,
             ),
-
             const SizedBox(height: 16),
-
-            // Check the general details loading flag from the provider
             if (provider.isFetchingDetails)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 40.0),
                 child: Center(child: CircularProgressIndicator()),
               )
             else
-              // If not loading general details, show the fields
-              // --- Type + Size in one row ---
               Row(
                 children: [
                   Expanded(
                     child:
                         TextInputConfig(
                           key: 'type',
-                          label: 'Type*',
+                          label: 'Type',
                           uppercase: true,
+                          isRequired: true,
                         ).buildWidget(
                           context,
                           provider.containerType?.toUpperCase() ?? '',
@@ -430,8 +346,9 @@ class _ContainerTabState extends State<ContainerTab> {
                     child:
                         TextInputConfig(
                           key: 'size',
-                          label: 'Size*',
+                          label: 'Size',
                           uppercase: true,
+                          isRequired: true,
                         ).buildWidget(
                           context,
                           provider.size?.toUpperCase() ?? '',
@@ -445,18 +362,16 @@ class _ContainerTabState extends State<ContainerTab> {
                   ),
                 ],
               ),
-
             const SizedBox(height: 16),
-
-            // --- Category + Make (conditional) in one row ---
             Row(
               children: [
                 Expanded(
                   child:
                       TextInputConfig(
                         key: 'category',
-                        label: 'Category*',
+                        label: 'Category',
                         uppercase: true,
+                        isRequired: true,
                       ).buildWidget(
                         context,
                         provider.category?.toUpperCase() ?? '',
@@ -518,11 +433,10 @@ class _ContainerTabState extends State<ContainerTab> {
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
-
             SearchableDropdown(
-              label: 'Shipping Line*',
+              label: 'Shipping Line',
+              isRequired: true,
               options: provider.shippingLines
                   .map<Map<String, String>>(
                     (s) => {
@@ -544,48 +458,24 @@ class _ContainerTabState extends State<ContainerTab> {
                 }
               },
             ),
-
             const SizedBox(height: 16),
-
-            // --- Gross & Tare in one row with validation ---
             Row(
               children: [
                 Expanded(
                   child:
                       TextInputConfig(
                         key: 'grossWeight',
-                        label: 'Gross Weight (kg)*',
+                        label: 'Gross Weight (kg)',
                         hint: '30480',
                         keyboardType: TextInputType.number,
                         isRequired: true,
-                        uppercase: true,
                       ).buildWidget(
                         context,
                         provider.grossWtController.text,
-                        (value) {
-                          final gross =
-                              double.tryParse(
-                                provider.grossWtController.text,
-                              ) ??
-                              0;
-                          final tare =
-                              double.tryParse(provider.tareWtController.text) ??
-                              0;
-
-                          if (tare > 0 && tare > gross) {
-                            provider.errors['grossWeight'] =
-                                'Gross must be ≥ Tare';
-                            provider.notifyListeners();
-                          } else {
-                            provider.errors.remove('grossWeight');
-                            provider.errors.remove('tareWeight');
-                            provider.calculatePayload(); // ✅ only valid case
-                          }
-
-                          _tareWeightFocus.requestFocus();
-                        },
+                        (value) => provider.grossWtController.text = value,
                         provider.errors['grossWeight'],
                         provider.grossWtController,
+                        focusNode: _grossWeightFocus,
                       ),
                 ),
                 const SizedBox(width: 12),
@@ -593,90 +483,59 @@ class _ContainerTabState extends State<ContainerTab> {
                   child:
                       TextInputConfig(
                         key: 'tareWeight',
-                        label: 'Tare Weight (kg)*',
+                        label: 'Tare Weight (kg)',
                         hint: '3900',
                         keyboardType: TextInputType.number,
                         isRequired: true,
-                        uppercase: true,
                       ).buildWidget(
                         context,
                         provider.tareWtController.text,
-                        (value) {
-                          final gross =
-                              double.tryParse(
-                                provider.grossWtController.text,
-                              ) ??
-                              0;
-                          final tare =
-                              double.tryParse(provider.tareWtController.text) ??
-                              0;
-
-                          if (tare > gross) {
-                            provider.errors['tareWeight'] =
-                                'Tare cannot exceed Gross';
-                            provider.notifyListeners();
-                          } else {
-                            provider.errors.remove('tareWeight');
-                            provider.errors.remove('grossWeight');
-                            provider.calculatePayload(); // ✅ only valid case
-                          }
-
-                          _mfgYearFocus.requestFocus();
-                        },
+                        (value) => provider.tareWtController.text = value,
                         provider.errors['tareWeight'],
                         provider.tareWtController,
+                        focusNode: _tareWeightFocus,
                       ),
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
-
-            TextInputConfig(
-              key: 'payload',
-              label: 'Payload (kg)',
-              uppercase: true,
-            ).buildWidget(
+            TextInputConfig(key: 'payload', label: 'Payload (kg)').buildWidget(
               context,
               provider.payload?.toStringAsFixed(2) ?? '',
               null,
               null,
-              TextEditingController(text: provider.payload?.toStringAsFixed(2)),
+              TextEditingController(
+                text: provider.payload?.toStringAsFixed(2) ?? '',
+              ),
               readOnly: true,
             ),
-
             const SizedBox(height: 16),
-
-            // --- MFG Month & Year in one row ---
             Row(
               children: [
                 Expanded(
                   child:
                       SelectInputConfig(
                         key: 'mfgMonth',
-                        label: 'MFG Month*',
+                        label: 'MFG Month',
+                        isRequired: true,
                         options: List.generate(
                           12,
                           (i) => {
-                            'value': (i + 1).toString().padLeft(2, '0'),
-                            'display': '${i + 1}', // show 1–12
+                            'value': (i + 1).toString(),
+                            'display': (i + 1).toString(),
                           },
                         ),
                       ).buildWidget(
                         context,
-                        provider.mfgMonthController.text,
+                        // MODIFIED: Use the dedicated variable for value
+                        provider.selectedMfgMonth,
+                        // MODIFIED: Update the dedicated variable on change
                         (value) {
-                          final monthNum = int.tryParse(value ?? '0') ?? 0;
-                          if (monthNum > 0 && monthNum <= 12) {
-                            final monthName = DateFormat(
-                              'MMMM',
-                            ).format(DateTime(0, monthNum));
-                            provider.mfgMonthController.text = monthName
-                                .toUpperCase();
-                          }
+                          provider.selectedMfgMonth = value;
+                          provider.notifyListeners(); // Notify UI of change
                         },
                         provider.errors['mfgMonth'],
-                        provider.mfgMonthController,
+                        null,
                       ),
                 ),
                 const SizedBox(width: 12),
@@ -684,74 +543,40 @@ class _ContainerTabState extends State<ContainerTab> {
                   child:
                       TextInputConfig(
                         key: 'mfgYear',
-                        label: 'MFG Year*',
+                        label: 'MFG Year',
                         hint: '2025',
                         keyboardType: TextInputType.number,
                         isRequired: true,
-                        uppercase: false,
                       ).buildWidget(
                         context,
                         provider.mfgYearController.text,
                         (value) =>
                             provider.mfgYearController.text = value.trim(),
-
                         provider.errors['mfgYear'],
                         provider.mfgYearController,
+                        focusNode: _mfgYearFocus,
                       ),
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
-
             TextInputConfig(
               key: 'fromLocation',
               label: 'From Location',
               hint: 'Port of Rotterdam',
               uppercase: true,
+              maxLength: 15,
             ).buildWidget(
               context,
               provider.fromLocationController.text,
-              (value) {
-                provider.fromLocationController.text = value.toUpperCase();
-              },
+              (value) => provider.fromLocationController.text = value,
               provider.errors['fromLocation'],
               provider.fromLocationController,
+              focusNode: _locationFocus,
             ),
           ],
         ),
       ),
     );
   }
-
-  // Method to validate ISO code when focus is lost
-  // void _validateIsoCodeOnFocusLoss() async {
-  //   final provider = Provider.of<PreGateInProvider>(context, listen: false);
-  //   final currentValue = _isoCodeController.text;
-  //
-  //   if (mounted &&
-  //       currentValue.isNotEmpty &&
-  //       !provider.validateIsoCode(currentValue) &&
-  //       !_isShowingValidationDialog &&
-  //       currentValue != _lastValidatedValue) {
-  //     _isShowingValidationDialog = true;
-  //     _lastValidatedValue = currentValue;
-  //
-  //     // Show caution dialog for invalid ISO code
-  //     if (mounted) {
-  //       await CautionDialog.showInvalidIsoCode(context);
-  //     }
-  //
-  //     // Clear the field after dialog is dismissed
-  //     if (mounted) {
-  //       _isoCodeController.clear();
-  //       provider.containerValues['isoCode'] = '';
-  //       provider.selectedIsoId = null;
-  //       provider.notifyListeners();
-  //     }
-  //
-  //     _isShowingValidationDialog = false;
-  //     _lastValidatedValue = '';
-  //   }
-  // }
 }

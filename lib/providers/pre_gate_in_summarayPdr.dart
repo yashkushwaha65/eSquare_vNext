@@ -11,6 +11,7 @@ class PreGateInSummaryProvider extends ChangeNotifier {
   final ApiService _apiService = ApiService();
   bool isLoading = false;
   List<PreGateInSummary> summaries = [];
+  List<dynamic> shippingLines = [];
 
   Future<void> fetchSummary({
     required int buId,
@@ -50,6 +51,7 @@ class PreGateInSummaryProvider extends ChangeNotifier {
             .map((e) => PreGateInSummary.fromJson(e as Map<String, dynamic>))
             .toList();
         await _fetchAttachmentsForSummaries(buId);
+        await _fetchShippingLines(buId);
       } else {
         summaries = [];
       }
@@ -63,8 +65,8 @@ class PreGateInSummaryProvider extends ChangeNotifier {
   }
 
   Future<void> _fetchAttachmentsForSummaries(int buId) async {
-    for (var i = 0; i < summaries.length; i++) {
-      final summary = summaries[i];
+    // Create a list of futures, one for each attachment request
+    final attachmentFutures = summaries.map((summary) async {
       try {
         final attachmentsResponse = await _apiService.postRequest(
           ApiEndpoints.viewSurveyAttachments,
@@ -75,13 +77,36 @@ class PreGateInSummaryProvider extends ChangeNotifier {
           final attachments = attachmentsResponse
               .map((e) => SurveyAttachment.fromJson(e as Map<String, dynamic>))
               .toList();
-          summaries[i] = summary.copyWith(attachments: attachments);
+          return summary.copyWith(attachments: attachments);
         }
       } catch (e) {
         debugPrint(
           '❌ Error fetching attachments for SurveyID ${summary.surveyID}: $e',
         );
       }
+      // Return the original summary if attachments fail to load
+      return summary;
+    }).toList();
+
+    // Wait for all the attachment futures to complete
+    final updatedSummaries = await Future.wait(attachmentFutures);
+
+    // Update the summaries list with the new data
+    summaries = updatedSummaries;
+  }
+
+  Future<void> _fetchShippingLines(int buId) async {
+    try {
+      final response = await _apiService.postRequest(
+        ApiEndpoints.getShippingLines,
+        {"BUID": buId},
+        authToken: ApiEndpoints.surveyAuthToken,
+      );
+      if (response is List) {
+        shippingLines = response;
+      }
+    } catch (e) {
+      debugPrint('❌ Error fetching shipping lines: $e');
     }
   }
 }

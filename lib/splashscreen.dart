@@ -37,26 +37,34 @@ class _SplashScreenState extends State<SplashScreen>
     _checkLoginStatus();
   }
 
-  /// **NEW: Checks SharedPreferences for a saved user session.**
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Pre-load the login background image into the cache
+    precacheImage(const AssetImage("assets/images/homedark.png"), context);
+  }
+
   Future<void> _checkLoginStatus() async {
-    // Wait for a couple of seconds for the animation to play.
     await Future.delayed(const Duration(seconds: 3));
 
-    if (!mounted) return; // Ensure the widget is still in the tree.
+    if (!mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
-
 
     final bool isLoggedIn = prefs.containsKey('user');
 
     if (isLoggedIn) {
-      // If logged in, go directly to the dashboard.
       Navigator.pushReplacementNamed(context, '/dashboard');
     } else {
-      // If not logged in, go to the login screen.
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => const LoginScreen(),
+          transitionsBuilder: (_, animation, __, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 400),
+        ),
       );
     }
   }

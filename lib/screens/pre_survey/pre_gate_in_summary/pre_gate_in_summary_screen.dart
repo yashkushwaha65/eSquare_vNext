@@ -1,3 +1,4 @@
+// lib/screens/pre_survey/pre_gate_in_summary/pre_gate_in_summary_screen.dart
 import 'dart:convert';
 
 import 'package:esquare/core/models/pre_gate_in_summaryMdl.dart';
@@ -10,7 +11,6 @@ import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 
 class PreGateInSummaryPage extends StatefulWidget {
   const PreGateInSummaryPage({super.key});
@@ -36,6 +36,7 @@ class _PreGateInSummaryPageState extends State<PreGateInSummaryPage>
   bool _isFiltersExpanded = false;
   late AnimationController _filterAnimationController;
   late Animation<double> _filterAnimation;
+  String? _selectedShippingLineId;
 
   @override
   void initState() {
@@ -55,10 +56,6 @@ class _PreGateInSummaryPageState extends State<PreGateInSummaryPage>
     toDateController = TextEditingController(
       text: DateFormat('dd MMM yyyy HH:mm').format(toDate),
     );
-
-    searchTextController.addListener(() {
-      setState(() {});
-    });
 
     _loadUserDataAndFetch();
   }
@@ -87,7 +84,7 @@ class _PreGateInSummaryPageState extends State<PreGateInSummaryPage>
           buId: buId!,
           fromDate: fromDateController.text,
           toDate: toDateController.text,
-          slId: "0",
+          slId: _selectedShippingLineId ?? "0",
           searchCriteria: searchCriteria,
           searchText: searchTextController.text,
           userId: userId!,
@@ -140,23 +137,65 @@ class _PreGateInSummaryPageState extends State<PreGateInSummaryPage>
     }
   }
 
+  // RE-INTRODUCED with fix
+  List<PreGateInSummary> _applySearchFilter(
+    List<PreGateInSummary> summaries,
+    List<dynamic> shippingLines,
+  ) {
+    if (searchCriteria == 'All' && searchTextController.text.trim().isEmpty) {
+      return summaries;
+    }
+
+    // For ContainerNo and SurveyNo
+    final searchText = searchTextController.text.trim().toLowerCase();
+
+    return summaries.where((summary) {
+      if (searchCriteria == 'Shipping Line') {
+        if (_selectedShippingLineId == null || _selectedShippingLineId == '0') {
+          return true;
+        }
+        final selectedLine = shippingLines.firstWhere(
+          (line) => line['SLID'].toString() == _selectedShippingLineId,
+          orElse: () => {'SLName': 'Unknown'},
+        );
+        return summary.lineName.toLowerCase() ==
+            selectedLine['SLName'].toLowerCase();
+      } else if (searchCriteria == 'ContainerNo') {
+        return summary.containerNo.toLowerCase().contains(searchText);
+      } else if (searchCriteria == 'SurveyNo') {
+        return summary.surveyNo.toLowerCase().contains(searchText);
+      } else if (searchCriteria == 'All' && searchText.isNotEmpty) {
+        // Handle search text when 'All' is selected
+        return summary.containerNo.toLowerCase().contains(searchText) ||
+            summary.surveyNo.toLowerCase().contains(searchText) ||
+            summary.lineName.toLowerCase().contains(searchText);
+      }
+      return true;
+    }).toList();
+  }
+
   List<PreGateInSummary> getSortedSummaries(
     List<PreGateInSummary> summaries,
     String criteria,
+    List<dynamic> shippingLines,
   ) {
-    List<PreGateInSummary> sorted = List.from(summaries);
+    // First apply search filter
+    List<PreGateInSummary> filtered = _applySearchFilter(
+      summaries,
+      shippingLines,
+    );
+
+    // Then sort
+    List<PreGateInSummary> sorted = List.from(filtered);
     switch (criteria) {
       case 'ContainerNo':
         sorted.sort((a, b) => a.containerNo.compareTo(b.containerNo));
         break;
-      case 'VehicleNo':
-        sorted.sort((a, b) => a.vehicleNo.compareTo(b.vehicleNo));
-        break;
       case 'SurveyNo':
         sorted.sort((a, b) => a.surveyNo.compareTo(b.surveyNo));
         break;
-      case 'ISOCode':
-        sorted.sort((a, b) => a.isoCode.compareTo(b.isoCode));
+      case 'Shipping Line':
+        sorted.sort((a, b) => a.lineName.compareTo(b.lineName));
         break;
       default:
         sorted.sort((a, b) => a.srNo.compareTo(b.srNo));
@@ -176,12 +215,14 @@ class _PreGateInSummaryPageState extends State<PreGateInSummaryPage>
   }
 
   void _applyFilters() {
+    // Hide keyboard
+    FocusScope.of(context).unfocus();
     debugPrint('🔧 Applying filters with userId: $userId, buId: $buId');
     Provider.of<PreGateInSummaryProvider>(context, listen: false).fetchSummary(
       buId: buId!,
       fromDate: fromDateController.text,
       toDate: toDateController.text,
-      slId: "0",
+      slId: _selectedShippingLineId ?? "0",
       searchCriteria: searchCriteria,
       searchText: searchTextController.text,
       userId: userId!,
@@ -189,6 +230,8 @@ class _PreGateInSummaryPageState extends State<PreGateInSummaryPage>
   }
 
   void _clearFilters() {
+    // Hide keyboard
+    FocusScope.of(context).unfocus();
     setState(() {
       fromDate = DateTime.now().subtract(const Duration(days: 30));
       toDate = DateTime.now();
@@ -198,7 +241,9 @@ class _PreGateInSummaryPageState extends State<PreGateInSummaryPage>
       toDateController.text = DateFormat('dd MMM yyyy HH:mm').format(toDate);
       searchCriteria = 'All';
       searchTextController.clear();
+      _selectedShippingLineId = null;
     });
+    _applyFilters(); // Re-fetch with cleared filters
   }
 
   @override
@@ -217,6 +262,7 @@ class _PreGateInSummaryPageState extends State<PreGateInSummaryPage>
     final sortedSummaries = getSortedSummaries(
       provider.summaries,
       searchCriteria,
+      provider.shippingLines, // Pass shippingLines here
     );
 
     return Theme(
@@ -267,10 +313,27 @@ class _PreGateInSummaryPageState extends State<PreGateInSummaryPage>
                     filterAnimation: _filterAnimation,
                     sortedSummaries: sortedSummaries,
                     onSelectDateTime: _selectDateTime,
-                    onSearchCriteriaChanged: (val) =>
-                        setState(() => searchCriteria = val!),
+                    onSearchCriteriaChanged: (val) {
+                      setState(() {
+                        searchCriteria = val!;
+                        // Clear search text when changing criteria
+                        if (val != 'Shipping Line') {
+                          searchTextController.clear();
+                        }
+                        _selectedShippingLineId = null;
+                      });
+                    },
                     onApplyFilters: _applyFilters,
                     onClearFilters: _clearFilters,
+                    shippingLines: Provider.of<PreGateInSummaryProvider>(
+                      context,
+                    ).shippingLines,
+                    selectedShippingLineId: _selectedShippingLineId,
+                    onShippingLineChanged: (val) {
+                      setState(() {
+                        _selectedShippingLineId = val;
+                      });
+                    },
                   ),
                   Expanded(
                     child: ResultsList(

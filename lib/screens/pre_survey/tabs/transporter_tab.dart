@@ -13,41 +13,41 @@ class TransporterTab extends StatefulWidget {
 }
 
 class _TransporterTabState extends State<TransporterTab> {
+  final FocusNode _vehicleNoFocusNode = FocusNode();
+  final FocusNode _driverLicenseFocusNode = FocusNode();
   bool _isShowingValidationDialog = false;
 
-  // 1. Declare a variable to hold the provider instance.
   late PreGateInProvider _provider;
 
   @override
   void initState() {
     super.initState();
-    // 2. Initialize the provider immediately and safely.
     _provider = Provider.of<PreGateInProvider>(context, listen: false);
-
-    // 3. Use the stored _provider instance to add listeners.
-    _provider.vehicleNoFocusNode.addListener(_onVehicleNoUnfocus);
-    _provider.driverLicenseFocusNode.addListener(_onDriverLicUnfocus);
+    _vehicleNoFocusNode.addListener(_onVehicleNoUnfocus);
+    _driverLicenseFocusNode.addListener(_onDriverLicUnfocus);
   }
 
   @override
   void dispose() {
-    // 4. Use the stored _provider instance to safely remove listeners.
-    _provider.vehicleNoFocusNode.removeListener(_onVehicleNoUnfocus);
-    _provider.driverLicenseFocusNode.removeListener(_onDriverLicUnfocus);
+    _vehicleNoFocusNode.removeListener(_onVehicleNoUnfocus);
+    _driverLicenseFocusNode.removeListener(_onDriverLicUnfocus);
+    _vehicleNoFocusNode.dispose();
+    _driverLicenseFocusNode.dispose();
     super.dispose();
   }
 
-  // Listener for vehicle number field unfocus
   void _onVehicleNoUnfocus() {
-    // 5. Use the stored _provider, which is guaranteed to be initialized.
-    if (!_provider.vehicleNoFocusNode.hasFocus) {
+    // --- FIX: Check if the widget is still mounted before proceeding ---
+    if (!mounted) return;
+    if (!_vehicleNoFocusNode.hasFocus) {
       _validateVehicleNo();
     }
   }
 
-  // Listener for driver license field unfocus
   void _onDriverLicUnfocus() {
-    if (!_provider.driverLicenseFocusNode.hasFocus) {
+    // --- FIX: Check if the widget is still mounted before proceeding ---
+    if (!mounted) return;
+    if (!_driverLicenseFocusNode.hasFocus) {
       _validateDriverLic();
     }
   }
@@ -65,13 +65,18 @@ class _TransporterTabState extends State<TransporterTab> {
         context: context,
         title: 'Invalid Vehicle Number',
         message:
-            'Format must be like GJ15AG1234 (2 letters, 2 numbers, 2 letters, 4 numbers).',
+        'Format must be like GJ15AG1234 (2 letters, 2 numbers, 2 letters, 4 numbers).',
       );
+      // ADDED: Check if the widget is still mounted after the dialog.
+      if (!mounted) return;
       _provider.vehicleNoController.clear();
       _provider.transporterValues['vehicleNo'] = '';
       _provider.errors['vehicleNo'] = ' ';
       _provider.notifyListeners();
-      _provider.vehicleNoFocusNode.requestFocus();
+      // --- FIX: Check if mounted before requesting focus ---
+      if (mounted) {
+        _vehicleNoFocusNode.requestFocus();
+      }
       _isShowingValidationDialog = false;
     }
   }
@@ -89,18 +94,22 @@ class _TransporterTabState extends State<TransporterTab> {
         title: 'Invalid Driver License Number',
         message: 'Driver License number must be 16 or 17 characters long.',
       );
+      // ADDED: Check if the widget is still mounted after the dialog.
+      if (!mounted) return;
       _provider.driverLicNoController.clear();
       _provider.transporterValues['driverLicense'] = '';
       _provider.errors['driverLicense'] = ' ';
       _provider.notifyListeners();
-      _provider.driverLicenseFocusNode.requestFocus();
+      // --- FIX: Check if mounted before requesting focus ---
+      if (mounted) {
+        _driverLicenseFocusNode.requestFocus();
+      }
       _isShowingValidationDialog = false;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // The build method can still get the provider normally.
     final provider = Provider.of<PreGateInProvider>(context);
 
     return SingleChildScrollView(
@@ -116,23 +125,6 @@ class _TransporterTabState extends State<TransporterTab> {
           const Text(
             'Enter vehicle and driver information',
             style: TextStyle(color: Colors.grey),
-          ),
-          const SizedBox(height: 16),
-          TextInputConfig(
-            key: 'vehicleNo',
-            label: 'Vehicle Number',
-            hint: 'GJ-15-AG-1234',
-            isRequired: true,
-            uppercase: true,
-            maxLength: 10,
-          ).buildWidget(
-            context,
-            provider.transporterValues['vehicleNo'],
-            (value) => provider.transporterValues['vehicleNo'] = value,
-            provider.errors['vehicleNo'],
-            provider.vehicleNoController,
-            focusNode: provider.vehicleNoFocusNode,
-            onSubmitted: (_) => _validateVehicleNo(),
           ),
           const SizedBox(height: 16),
           SelectInputConfig(
@@ -175,26 +167,28 @@ class _TransporterTabState extends State<TransporterTab> {
           ),
           const SizedBox(height: 16),
           TextInputConfig(
-            key: 'driverLicense',
-            label: 'Driver License Number',
-            hint: 'MH1234567890123',
-            isRequired: true,
-            maxLength: 16,
+            key: 'vehicleNo',
+            label: 'Vehicle Number',
+            hint: 'GJ-15-AG-1234',
+            isRequired: false,
+            uppercase: true,
+            maxLength: 10,
           ).buildWidget(
             context,
-            provider.transporterValues['driverLicense'],
-            (value) => provider.transporterValues['driverLicense'] = value,
-            provider.errors['driverLicense'],
-            provider.driverLicNoController,
-            focusNode: provider.driverLicenseFocusNode,
-            onSubmitted: (_) => _validateDriverLic(),
+            provider.transporterValues['vehicleNo'],
+            (value) => provider.transporterValues['vehicleNo'] = value,
+            provider.errors['vehicleNo'],
+            provider.vehicleNoController,
+            focusNode: _vehicleNoFocusNode,
+            onSubmitted: (_) => _validateVehicleNo(),
           ),
+
           const SizedBox(height: 16),
           TextInputConfig(
             key: 'driverName',
             label: 'Driver Name',
             hint: 'John Doe',
-            isRequired: true,
+            isRequired: false,
             maxLength: 15,
           ).buildWidget(
             context,
@@ -202,6 +196,22 @@ class _TransporterTabState extends State<TransporterTab> {
             (value) => provider.transporterValues['driverName'] = value,
             provider.errors['driverName'],
             provider.driverNameController,
+          ),
+          const SizedBox(height: 16),
+          TextInputConfig(
+            key: 'driverLicense',
+            label: 'Driver License Number',
+            hint: 'MH1234567890123',
+            isRequired: false,
+            maxLength: 16,
+          ).buildWidget(
+            context,
+            provider.transporterValues['driverLicense'],
+            (value) => provider.transporterValues['driverLicense'] = value,
+            provider.errors['driverLicense'],
+            provider.driverLicNoController,
+            focusNode: _driverLicenseFocusNode,
+            onSubmitted: (_) => _validateDriverLic(),
           ),
         ],
       ),

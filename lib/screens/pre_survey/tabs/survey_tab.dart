@@ -1,8 +1,9 @@
-// lib/tabs/survey_tab.dart
+// lib/screens/pre_survey/tabs/survey_tab.dart
 import 'package:esquare/core/configs/input_config.dart';
 import 'package:esquare/providers/pre_gate_inPdr.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 class SurveyTab extends StatelessWidget {
@@ -34,6 +35,10 @@ class SurveyTab extends StatelessWidget {
                   },
                   provider.errors[config.key],
                   _getControllerForKey(provider, config.key),
+                  // --- ADD THIS READONLY LOGIC ---
+                  readOnly:
+                      (config.key == 'condition' &&
+                      provider.isFetchingConditions),
                 ),
               )
               .toList(),
@@ -80,9 +85,8 @@ class SurveyTab extends StatelessWidget {
     }
   }
 
-  // Helper to update the provider's state when a field changes
+// Helper to update the provider's state when a field changes
   void _onValueChanged(PreGateInProvider provider, String key, dynamic value) {
-    // Update dedicated provider variables for dropdowns
     switch (key) {
       case 'examination':
         provider.selectedExaminedId = value as String?;
@@ -91,15 +95,12 @@ class SurveyTab extends StatelessWidget {
         provider.selectedSurveyTypeId = value as String?;
         break;
       case 'containerInStatus':
-        provider.selectedContainerStatusId = value as String?;
-        if (value != null) {
-          provider.fetchConditions(value);
-        }
+      // This now handles the change *after* a selection is made
+        provider.updateContainerStatus(value as String?);
         break;
       case 'condition':
         provider.selectedConditionId = value as String?;
         break;
-      // For fields with controllers, update the controller's text
       default:
         final controller = _getControllerForKey(provider, key);
         if (controller != null) {
@@ -112,7 +113,7 @@ class SurveyTab extends StatelessWidget {
     return [
       SelectInputConfig(
         key: 'examination',
-        label: 'Examined*',
+        label: 'Examined',
         isRequired: true,
         options: provider.examineList
             .map<Map<String, String>>(
@@ -125,7 +126,7 @@ class SurveyTab extends StatelessWidget {
       ),
       SelectInputConfig(
         key: 'surveyType',
-        label: 'Survey Type*',
+        label: 'Survey Type',
         isRequired: true,
         options: provider.surveyTypes
             .map<Map<String, String>>(
@@ -138,36 +139,44 @@ class SurveyTab extends StatelessWidget {
       ),
       SelectInputConfig(
         key: 'containerInStatus',
-        label: 'Container Status*',
+        label: 'Container Status',
         isRequired: true,
         options: provider.containerStatus
             .map<Map<String, String>>(
               (c) => {
-                'value': c['ID'].toString(),
-                'display': c['Status'].toString(),
-              },
-            )
+            'value': c['ID'].toString(),
+            'display': c['Status'].toString(),
+          },
+        )
             .toList(),
+        // --- THIS IS THE FIX ---
+        // The onTap callback fires the moment the user touches the dropdown.
+        onTap: () {
+          // It calls a dedicated method in the provider to immediately reset the condition.
+          provider.resetConditionState();
+        },
       ),
       SelectInputConfig(
         key: 'condition',
-        label: 'Condition*',
+        label: provider.isFetchingConditions
+            ? 'Loading Conditions...'
+            : 'Condition',
         isRequired: true,
         options: (provider.conditions)
             .where(
               (c) => c != null && c['ID'] != null && c['Condition'] != null,
-            )
+        )
             .map<Map<String, String>>(
               (c) => {
-                'value': c['ID'].toString(),
-                'display': c['Condition'].toString(),
-              },
-            )
+            'value': c['ID'].toString(),
+            'display': c['Condition'].toString(),
+          },
+        )
             .toList(),
       ),
       TextInputConfig(
         key: 'grade',
-        label: 'Grade*',
+        label: 'Grade',
         hint: 'A, B, C, or D.',
         isRequired: true,
         maxLength: 1,
@@ -195,8 +204,11 @@ class SurveyTab extends StatelessWidget {
       // --- 4. DO Validity is now optional ---
       DateInputConfig(
         key: 'doValidityDate',
-        label: 'DO Validity Date', // Asterisk removed
-        isRequired: false, // Set to false
+        label: 'DO Validity Date',
+        isRequired: false,
+        autoNow: false,
+        // Set to false to allow editing
+        initialDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
       ),
       TextAreaConfig(
         key: 'description',

@@ -1,10 +1,10 @@
+// lib/screens/pre_survey/pre_gate_in_summary/widgets/filter_section.dart
 import 'package:esquare/core/models/pre_gate_in_summaryMdl.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:lottie/lottie.dart';
 
 import '../../../../core/theme/app_theme.dart';
-
 
 class FilterSection extends StatelessWidget {
   final DateTime fromDate;
@@ -20,6 +20,9 @@ class FilterSection extends StatelessWidget {
   final Function(String?) onSearchCriteriaChanged;
   final VoidCallback onApplyFilters;
   final VoidCallback onClearFilters;
+  final List<dynamic> shippingLines;
+  final String? selectedShippingLineId;
+  final Function(String?) onShippingLineChanged;
 
   const FilterSection({
     super.key,
@@ -36,6 +39,9 @@ class FilterSection extends StatelessWidget {
     required this.onSearchCriteriaChanged,
     required this.onApplyFilters,
     required this.onClearFilters,
+    required this.shippingLines,
+    this.selectedShippingLineId,
+    required this.onShippingLineChanged,
   });
 
   List<Widget> _getActiveFilters() {
@@ -53,7 +59,19 @@ class FilterSection extends StatelessWidget {
       );
     }
 
-    if (searchTextController.text.isNotEmpty) {
+    if (searchCriteria == 'Shipping Line' && selectedShippingLineId != null) {
+      final selectedLine = shippingLines.firstWhere(
+        (line) => line['SLID'].toString() == selectedShippingLineId,
+        orElse: () => {'SLName': 'Unknown'},
+      );
+      filters.add(
+        _buildActiveFilterChip(
+          'Shipping Line',
+          selectedLine['SLName'],
+          Icons.business,
+        ),
+      );
+    } else if (searchTextController.text.isNotEmpty) {
       filters.add(
         _buildActiveFilterChip(
           'Search',
@@ -139,7 +157,7 @@ class FilterSection extends StatelessWidget {
               flex: 2,
               child: DropdownButtonFormField<String>(
                 isExpanded: true,
-                initialValue: searchCriteria,
+                value: searchCriteria,
                 decoration: const InputDecoration(
                   labelText: 'Search By',
                   prefixIcon: Icon(
@@ -148,37 +166,84 @@ class FilterSection extends StatelessWidget {
                     color: AppTheme.primaryColor,
                   ),
                 ),
-                items: <String>['All', 'ContainerNo', 'VehicleNo', 'SurveyNo', 'ISOCode']
-                    .map((val) => DropdownMenuItem(value: val, child: Text(val)))
-                    .toList(),
+                items:
+                    <String>['All', 'ContainerNo', 'SurveyNo', 'Shipping Line']
+                        .map(
+                          (val) =>
+                              DropdownMenuItem(value: val, child: Text(val)),
+                        )
+                        .toList(),
                 onChanged: onSearchCriteriaChanged,
               ),
             ),
             const SizedBox(width: 16),
-            Expanded(
-              flex: 3,
-              child: TextFormField(
-                controller: searchTextController,
-                decoration: InputDecoration(
-                  labelText: 'Search Text',
-                  prefixIcon: const Icon(
-                    Icons.manage_search,
-                    size: 20,
-                    color: AppTheme.primaryColor,
-                  ),
-                  suffixIcon: searchTextController.text.isNotEmpty
-                      ? IconButton(
-                    icon: const Icon(
-                      Icons.clear,
-                      size: 18,
-                      color: Color(0xFF757575),
+            if (searchCriteria == 'Shipping Line')
+              Expanded(
+                flex: 3,
+                child: DropdownButtonFormField<String>(
+                  value: selectedShippingLineId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Shipping Line',
+                    prefixIcon: Icon(
+                      Icons.business,
+                      size: 20,
+                      color: AppTheme.primaryColor,
                     ),
-                    onPressed: () => searchTextController.clear(),
-                  )
-                      : null,
+                  ),
+                  items: shippingLines
+                      .map(
+                        (e) => DropdownMenuItem(
+                          value: e['SLID'].toString(),
+                          child: Text(
+                            e['SLName'],
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: onShippingLineChanged,
+                ),
+              )
+            else
+              Expanded(
+                flex: 3,
+                child: TextFormField(
+                  controller: searchTextController,
+                  inputFormatters: searchCriteria == 'ContainerNo'
+                      ? [
+                          LengthLimitingTextInputFormatter(13),
+                          // Allow only alphanumeric characters for container numbers
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'[a-zA-Z0-9]'),
+                          ),
+                        ]
+                      : [],
+                  decoration: InputDecoration(
+                    labelText: searchCriteria == 'ContainerNo'
+                        ? 'Container No (max 13 chars)'
+                        : 'Search Text',
+                    prefixIcon: const Icon(
+                      Icons.manage_search,
+                      size: 20,
+                      color: AppTheme.primaryColor,
+                    ),
+                    suffixIcon: searchTextController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(
+                              Icons.clear,
+                              size: 18,
+                              color: Color(0xFF757575),
+                            ),
+                            onPressed: () => searchTextController.clear(),
+                          )
+                        : null,
+                  ),
+                  textCapitalization: searchCriteria == 'ContainerNo'
+                      ? TextCapitalization.characters
+                      : TextCapitalization.none,
                 ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: 20),

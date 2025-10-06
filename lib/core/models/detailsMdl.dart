@@ -1,4 +1,4 @@
-// lib/models/details.dart
+// lib/core/models/detailsMdl.dart
 class Details {
   final String category;
   final String examination;
@@ -9,6 +9,7 @@ class Details {
   final String doNo;
   final String doDate;
   final String description;
+  final String condition; // ADDED: Field to hold the condition text
 
   Details({
     required this.category,
@@ -20,5 +21,6 @@ class Details {
     required this.doNo,
     required this.doDate,
     required this.description,
+    required this.condition, // ADDED: To the constructor
   });
 }

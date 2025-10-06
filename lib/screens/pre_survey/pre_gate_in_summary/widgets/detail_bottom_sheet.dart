@@ -1,7 +1,12 @@
+import 'package:esquare/core/models/containerMdl.dart';
+import 'package:esquare/core/models/detailsMdl.dart';
+import 'package:esquare/core/models/photoMdl.dart';
 import 'package:esquare/core/models/pre_gate_in_summaryMdl.dart';
+import 'package:esquare/core/models/surveyMdl.dart';
+import 'package:esquare/core/models/transporterMdl.dart';
 import 'package:esquare/core/theme/app_theme.dart';
+import 'package:esquare/screens/pre_survey/pre_gate_in_screen.dart';
 import 'package:flutter/material.dart';
-
 
 class DetailBottomSheet extends StatelessWidget {
   final PreGateInSummary item;
@@ -9,12 +14,64 @@ class DetailBottomSheet extends StatelessWidget {
   const DetailBottomSheet({super.key, required this.item});
 
   void _navigateToEditPage(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Opening edit page for ${item.containerNo}'),
-        backgroundColor: AppTheme.primaryColor,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    final survey = Survey(
+      id: item.surveyID.toString(),
+      containerId: item.containerNo,
+      container: ContainerModel(
+        id: '',
+        // Not available in summary
+        containerNo: item.containerNo,
+        mfgMonth: item.mfgMonth,
+        mfgYear: item.mfgYear.toString(),
+        grossWeight: item.grossWt,
+        tareWeight: item.tareWt,
+        payload: item.payLoad,
+        shippingLine: item.lineName,
+        isoCode: item.isoCode,
+        sizeType: '${item.size} ${item.containerType}',
+        status: item.containerStatus,
+      ),
+      transporter: Transporter(
+        vehicleNo: item.vehicleNo,
+        transporterName: '', // Not available in summary
+        driverLicense: '', // Not available in summary
+        driverName: '', // Not available in summary
+      ),
+      details: Details(
+        category: item.category,
+        examination: '',
+        // Not available in summary
+        surveyType: item.surveyType,
+        containerInStatus: item.containerStatus,
+        grade: '',
+        // Not available in summary
+        cscAsp: '',
+        // Not available in summary
+        doNo: '',
+        // Not available in summary
+        doDate: '',
+        // Not available in summary
+        description: '',
+        condition: item.condition, // Not available in summary
+      ),
+      photos: item.attachments
+          .map(
+            (e) => Photo(
+              id: '',
+              url: e.filePath1,
+              timestamp: '',
+              docName: e.docName,
+              description: e.fileDesc,
+            ),
+          )
+          .toList(),
+      createdAt: item.surveyDate,
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PreGateInScreen(editingSurvey: survey),
       ),
     );
   }
@@ -33,11 +90,9 @@ class DetailBottomSheet extends StatelessWidget {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: AppTheme.backgroundColor,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
-              ),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
             ),
             child: Text(
               title,
@@ -121,20 +176,32 @@ class DetailBottomSheet extends StatelessWidget {
                     ),
                   ),
                 ),
-                _buildDetailSection('Container Details', [
-                  _buildDetailRow('Container No', item.containerNo),
-                  _buildDetailRow(
-                    'Size/Type',
-                    '${item.size} ${item.containerType}',
-                  ),
+                _buildDetailSection('Container No: ${item.containerNo}', [
                   _buildDetailRow('ISO Code', item.isoCode),
+                  _buildDetailRow('Type', item.containerType),
+                  _buildDetailRow('Size', item.size.toString()),
                   _buildDetailRow('Category', item.category),
-                  _buildDetailRow('Line Name', item.lineName),
+                  _buildDetailRow('Shipping Line', item.lineName),
+                  _buildDetailRow(
+                    'Gross Weight',
+                    '${item.grossWt.toStringAsFixed(2)} kg',
+                  ),
+                  _buildDetailRow(
+                    'Tare Weight',
+                    '${item.tareWt.toStringAsFixed(2)} kg',
+                  ),
+                  _buildDetailRow(
+                    'Payload',
+                    '${item.payLoad.toStringAsFixed(2)} kg',
+                  ),
+                  _buildDetailRow('MFG Month', item.mfgMonth),
+                  _buildDetailRow('MFG Year', item.mfgYear.toString()),
+                  // Note: Make and From Location are not available in summary
                 ]),
                 const SizedBox(height: 20),
                 _buildDetailSection('Transport Details', [
                   _buildDetailRow('Vehicle Number', item.vehicleNo),
-                  _buildDetailRow('SLID', item.lineName),
+                  // Note: Transporter Name, Driver Name, and License No are not available in summary
                 ]),
                 const SizedBox(height: 20),
                 _buildDetailSection('Survey Details', [
@@ -143,6 +210,7 @@ class DetailBottomSheet extends StatelessWidget {
                   _buildDetailRow('Survey Type', item.surveyType),
                   _buildDetailRow('Container Status', item.containerStatus),
                   _buildDetailRow('Condition', item.condition),
+                  // Note: Other survey details are not available in summary
                 ]),
                 if (item.attachments.isNotEmpty) ...[
                   const SizedBox(height: 20),
@@ -196,7 +264,7 @@ class DetailBottomSheet extends StatelessWidget {
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.edit, size: 20),
                     label: const Text(
-                      'Edit Container',
+                      'Edit Survey',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,

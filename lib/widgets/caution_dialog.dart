@@ -56,6 +56,59 @@ class CautionDialog {
     );
   }
 
+
+  /// NEW: Shows a confirmation dialog for an invalid container number
+  static Future<bool> showInvalidContainerConfirmation(
+      BuildContext context,
+      ) async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.warning, color: Colors.orange, size: 28),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Invalid Container',
+                  style: TextStyle(
+                    color: Colors.orange,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'This container number is not valid. Do you want to continue with this number?',
+            style: TextStyle(fontSize: 15, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false), // "Clear"
+              child: const Text('CLEAR', style: TextStyle(color: Colors.grey)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true), // "Continue"
+              child: const Text(
+                'CONTINUE',
+                style: TextStyle(color: Colors.orange),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    // Return false if the dialog is dismissed (e.g., by back button)
+    return result ?? false;
+  }
+
+
   /// Shows an invalid input dialog specifically for ISO codes
   static Future<void> showInvalidIsoCode(BuildContext context) async {
     return show(

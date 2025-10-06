@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:esquare/core/models/photoMdl.dart';
 import 'package:esquare/core/models/userMdl.dart';
+import 'package:esquare/widgets/caution_dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -101,18 +102,23 @@ Future<File?> _processImageInBackground(Map<String, dynamic> args) async {
 }
 
 class PreGateInProvider extends ChangeNotifier {
-  // ADD THIS NEW FLAG for container validation
   bool _isValidatingContainer = false;
 
   bool get isValidatingContainer => _isValidatingContainer;
 
-  // ADD THIS NEW FLAG for the 'Make' field specifically
   bool _isFetchingDetails = false;
 
   bool get isFetchingDetails => _isFetchingDetails;
   bool _isFetchingMakes = false;
 
   bool get isFetchingMakes => _isFetchingMakes;
+
+  bool _isFetchingConditions = false;
+
+  bool get isFetchingConditions => _isFetchingConditions;
+
+  static const int maxPhotos = 5;
+
   final ApiService _apiService = ApiService();
 
   /// Container's Tab
@@ -121,17 +127,13 @@ class PreGateInProvider extends ChangeNotifier {
   final containerNoController = TextEditingController();
   final grossWtController = TextEditingController();
   final tareWtController = TextEditingController();
-  final mfgMonthController = TextEditingController();
+
   final mfgYearController = TextEditingController();
 
   /// Transporter's Tab
   final vehicleNoController = TextEditingController();
   final driverNameController = TextEditingController();
   final driverLicNoController = TextEditingController();
-
-  // --- 1. FocusNodes ADDED to the Provider ---
-  final FocusNode vehicleNoFocusNode = FocusNode();
-  final FocusNode driverLicenseFocusNode = FocusNode();
 
   /// Survey's Tab
   final gradeController = TextEditingController();
@@ -150,9 +152,8 @@ class PreGateInProvider extends ChangeNotifier {
   bool isProcessingImage = false;
   double? payload;
   bool containerValid = false;
+  int? surveyIdForEdit;
 
-  // int buId = 3;
-  // int userId = 21;
   int? _buId;
   int? _userId;
 
@@ -160,6 +161,7 @@ class PreGateInProvider extends ChangeNotifier {
   String? selectedDODate; // if storing formatted string
 
   // Selected IDs
+  String? selectedMfgMonth;
   String? selectedIsoId;
   String? selectedSlId;
   String? selectedTransId;
@@ -200,7 +202,6 @@ class PreGateInProvider extends ChangeNotifier {
     int completed = 0;
     if (containerNoController.text.isNotEmpty) completed++;
     if (selectedSlId != null) completed++;
-    if (mfgMonthController.text.isNotEmpty) completed++;
     if (mfgYearController.text.isNotEmpty) completed++;
     if (grossWtController.text.isNotEmpty) completed++;
     if (tareWtController.text.isNotEmpty) completed++;
@@ -211,68 +212,83 @@ class PreGateInProvider extends ChangeNotifier {
     return (completed / 10 * 100);
   }
 
-  // ** MODIFIED - This method is now the master validation checker **
   bool validateForm() {
     errors.clear();
 
-    // --- Container No Validations  ---
+    // --- Container Tab Validations  ---
     if (containerNoController.text.trim().isEmpty) {
-      errors['containerNo'] = 'Container Number is required';
+      errors['containerNo'] = 'Container Number is required.';
     } else {
       final formatRegex = RegExp(r'^[A-Z]{4}[0-9]{7}$');
       if (!formatRegex.hasMatch(containerNoController.text.trim())) {
         errors['containerNo'] =
-            'Format must be 4 letters and 7 digits (e.g., MSCU1234567)';
+            'Format must be 4 letters and 7 digits (e.g., MSCU1234567).';
       }
     }
 
-    // --- Shipping Line & ISO Code Validation  ---
-    if (selectedSlId == null && hasValidatedShippingLine) {
-      errors['shippingLine'] = 'Shipping Line is required';
+    if (selectedSlId == null) {
+      errors['shippingLine'] = 'Shipping Line is required.';
     }
 
     if (selectedIsoId == null) {
-      errors['isoCode'] = 'ISO Code is required';
+      errors['isoCode'] = 'ISO Code is required.';
     }
 
-    // --- Weight Validations ---
     final double grossWt = double.tryParse(grossWtController.text) ?? 0.0;
     final double tareWt = double.tryParse(tareWtController.text) ?? 0.0;
 
     if (grossWtController.text.isEmpty) {
-      errors['grossWeight'] = 'Gross Weight is required';
+      errors['grossWeight'] = 'Gross Weight is required.';
     } else if (grossWt <= 0) {
-      errors['grossWeight'] = 'Gross Weight must be greater than 0';
+      errors['grossWeight'] = 'Gross Weight must be greater than 0.';
     }
 
     if (tareWtController.text.isEmpty) {
-      errors['tareWeight'] = 'Tare Weight is required';
+      errors['tareWeight'] = 'Tare Weight is required.';
     } else if (tareWt <= 0) {
-      errors['tareWeight'] = 'Tare Weight must be greater than 0';
+      errors['tareWeight'] = 'Tare Weight must be greater than 0.';
     }
 
-    // Check tare vs gross only if both are valid numbers > 0
     if (grossWt > 0 && tareWt > 0 && tareWt > grossWt) {
-      errors['tareWeight'] = 'Tare Weight cannot be greater than Gross Weight';
+      errors['tareWeight'] = 'Tare Weight cannot be greater than Gross Weight.';
     }
-
-    // --- MFG Year & Month Validation  ---
-    if (mfgMonthController.text.isEmpty) {
-      errors['mfgMonth'] = 'MFG Month is required';
+    if (selectedMfgMonth == null || selectedMfgMonth!.isEmpty) {
+      errors['mfgMonth'] = 'MFG Month is required.';
     }
 
     if (mfgYearController.text.isEmpty) {
-      errors['mfgYear'] = 'MFG Year is required';
+      errors['mfgYear'] = 'MFG Year is required.';
     } else {
       final int? year = int.tryParse(mfgYearController.text);
       if (year == null || mfgYearController.text.length != 4) {
-        errors['mfgYear'] = 'Enter a valid 4-digit year';
+        errors['mfgYear'] = 'Enter a valid 4-digit year.';
       } else {
         final int currentYear = DateTime.now().year;
         if (year > currentYear || year < (currentYear - 30)) {
-          errors['mfgYear'] = 'Year must be within the last 30 years';
+          errors['mfgYear'] = 'Year must be within the last 30 years.';
         }
       }
+    }
+
+    if (selectedTransId == null) {
+      errors['transporterName'] = 'Transporter Name is required.';
+    }
+
+    // --- Survey Tab Validations ---
+    if (selectedExaminedId == null) {
+      errors['examination'] = 'Examined is required.';
+    }
+    if (selectedSurveyTypeId == null) {
+      errors['surveyType'] = 'Survey Type is required.';
+    }
+    if (selectedContainerStatusId == null) {
+      errors['containerInStatus'] = 'Container Status is required.';
+    }
+    if (selectedConditionId == null) {
+      errors['condition'] = 'Condition is required.';
+    }
+    if (gradeController.text.trim().isEmpty) {
+      errors['grade'] = 'Grade is required.';
     }
 
     notifyListeners();
@@ -280,7 +296,6 @@ class PreGateInProvider extends ChangeNotifier {
   }
 
   PreGateInProvider() {
-    // Set the initial value to the current date and time when the provider is created.
     setInitialSurveyDateTime();
   }
 
@@ -292,15 +307,11 @@ class PreGateInProvider extends ChangeNotifier {
   }
 
   void updateUser(UserModel? user) {
-    // Check if the BUID is changing from null to a real value.
-    // This is a reliable way to know the user has just been loaded.
     bool justLoggedIn = (_buId == null && user?.buid != null);
 
     _userId = user?.userId;
     _buId = user?.buid;
 
-    // If the user's data was just loaded for the first time,
-    // then it's the perfect time to fetch the dropdown data.
     if (justLoggedIn) {
       debugPrint(
         "✅ User data received in provider. Fetching dropdowns with BUID: $_buId",
@@ -314,7 +325,6 @@ class PreGateInProvider extends ChangeNotifier {
     containerNoController.dispose();
     grossWtController.dispose();
     tareWtController.dispose();
-    mfgMonthController.dispose();
     mfgYearController.dispose();
     vehicleNoController.dispose();
     driverNameController.dispose();
@@ -329,21 +339,14 @@ class PreGateInProvider extends ChangeNotifier {
     fromLocationController.dispose();
     doValidityDateController.dispose();
 
-    // --- 2. Dispose FocusNodes ---
-    vehicleNoFocusNode.dispose();
-    driverLicenseFocusNode.dispose();
-
     super.dispose();
   }
 
-  // lib/providers/pre_gate_inPdr.dart
-
-  void resetFields() {
+  void resetFields({bool notify = true}) {
     setInitialSurveyDateTime();
     containerNoController.clear();
     grossWtController.clear();
     tareWtController.clear();
-    mfgMonthController.clear();
     mfgYearController.clear();
     vehicleNoController.clear();
     driverNameController.clear();
@@ -359,8 +362,8 @@ class PreGateInProvider extends ChangeNotifier {
     doValidityDateController.clear();
     photos.clear();
     containerValues.clear();
-    transporterValues.clear(); // Added
-    surveyValues.clear(); // Added
+    transporterValues.clear();
+    surveyValues.clear();
     selectedIsoId = null;
     selectedSlId = null;
     selectedTransId = null;
@@ -369,16 +372,20 @@ class PreGateInProvider extends ChangeNotifier {
     selectedContainerStatusId = null;
     selectedConditionId = null;
     selectedMakeId = null;
+    selectedMfgMonth = null;
     size = null;
     containerType = null;
     category = '';
     payload = null;
     containerValid = false;
-    hasValidatedShippingLine = false; // Added
-    conditions = []; // Added
-    makes = []; // Added
+    hasValidatedShippingLine = false;
+    conditions = [];
+    makes = [];
     errors.clear();
-    notifyListeners();
+    surveyIdForEdit = null;
+    if (notify) {
+      notifyListeners();
+    }
   }
 
   void removePhoto(Photo photo) {
@@ -404,11 +411,11 @@ class PreGateInProvider extends ChangeNotifier {
         isValid = res.first['Status'] == true;
       }
 
-      containerValid = isValid; // Update the containerValid state
+      containerValid = isValid;
       return isValid;
     } catch (e) {
       debugPrint("validateContainer error: $e");
-      containerValid = false; // Assume invalid on error
+      containerValid = false;
       return false;
     } finally {
       _isValidatingContainer = false;
@@ -441,9 +448,8 @@ class PreGateInProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Validates if the entered ISO code exists in the available ISO codes list
   bool validateIsoCode(String isoCodeText) {
-    if (isoCodeText.isEmpty) return true; // Allow empty for now
+    if (isoCodeText.isEmpty) return true;
 
     final foundIso = isoCodes.any(
       (iso) =>
@@ -453,9 +459,8 @@ class PreGateInProvider extends ChangeNotifier {
     return foundIso;
   }
 
-  /// Validates if the entered shipping line exists in the available shipping lines list
   bool validateShippingLine(String shippingLineText) {
-    if (shippingLineText.isEmpty) return true; // Allow empty for now
+    if (shippingLineText.isEmpty) return true;
 
     final foundShippingLine = shippingLines.any(
       (sl) =>
@@ -466,7 +471,6 @@ class PreGateInProvider extends ChangeNotifier {
     return foundShippingLine;
   }
 
-  /// Validates if the selected shipping line ID exists in the available shipping lines list
   bool validateShippingLineId(String? shippingLineId) {
     if (shippingLineId == null || shippingLineId.isEmpty) return true;
 
@@ -477,9 +481,8 @@ class PreGateInProvider extends ChangeNotifier {
     return foundShippingLine;
   }
 
-  /// Validates if the entered transporter exists in the available transporters list
   bool validateTransporter(String transporterText) {
-    if (transporterText.isEmpty) return true; // Allow empty for now
+    if (transporterText.isEmpty) return true;
 
     final foundTransporter = transporters.any(
       (t) =>
@@ -490,7 +493,6 @@ class PreGateInProvider extends ChangeNotifier {
     return foundTransporter;
   }
 
-  /// Validates if the selected transporter ID exists in the available transporters list
   bool validateTransporterId(String? transporterId) {
     if (transporterId == null || transporterId.isEmpty) return true;
 
@@ -501,7 +503,6 @@ class PreGateInProvider extends ChangeNotifier {
     return foundTransporter;
   }
 
-  /// Validates if the selected make ID exists in the available makes list
   bool validateMakeId(String? makeId) {
     if (makeId == null || makeId.isEmpty) return true;
 
@@ -510,7 +511,6 @@ class PreGateInProvider extends ChangeNotifier {
     return foundMake;
   }
 
-  /// Validates if the selected survey type ID exists in the available survey types list
   bool validateSurveyTypeId(String? surveyTypeId) {
     if (surveyTypeId == null || surveyTypeId.isEmpty) return true;
 
@@ -521,7 +521,6 @@ class PreGateInProvider extends ChangeNotifier {
     return foundSurveyType;
   }
 
-  /// Validates if the selected container status ID exists in the available container status list
   bool validateContainerStatusId(String? containerStatusId) {
     if (containerStatusId == null || containerStatusId.isEmpty) return true;
 
@@ -532,7 +531,6 @@ class PreGateInProvider extends ChangeNotifier {
     return foundContainerStatus;
   }
 
-  /// Validates if the selected condition ID exists in the available conditions list
   bool validateConditionId(String? conditionId) {
     if (conditionId == null || conditionId.isEmpty) return true;
 
@@ -548,9 +546,6 @@ class PreGateInProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // selectedIsoId = isoId;
-
-      // Clear previous details
       size = '';
       containerType = '';
       category = '';
@@ -566,7 +561,6 @@ class PreGateInProvider extends ChangeNotifier {
       );
 
       if (foundIso == null) {
-        // It's good practice to clear the ID if the code is invalid
         selectedIsoId = null;
         return;
       }
@@ -595,8 +589,6 @@ class PreGateInProvider extends ChangeNotifier {
         category = data['Category']?.toString() ?? '';
         sizeTypeController.text = '$size $containerType'.toUpperCase();
         categoryController.text = category.toUpperCase();
-        // --- FIX: ADD THIS CONDITIONAL CHECK ---
-        // If the container is a Refrigerated Container ('RF'), fetch the makes.
         if (containerType?.toUpperCase() == 'RF') {
           await fetchMakes();
         }
@@ -608,76 +600,90 @@ class PreGateInProvider extends ChangeNotifier {
   }
 
   Future<void> fetchMakes() async {
-    // 1. Set the dedicated 'makes' loading flag to true and notify UI
     _isFetchingMakes = true;
     notifyListeners();
 
     try {
-      // 2. Make the API call to get the list of makes
       final dynamic response = await _apiService.postRequest(
         ApiEndpoints.getMake,
         {"Category": "ref"},
-        // Assuming "ref" is the correct category for RF containers
         authToken: ApiEndpoints.surveyAuthToken,
       );
       debugPrint(
         "-------------------------------- GetMakeApi ------------------------------------",
       );
       debugPrint(response.toString());
-      // It's safer to check the response type before assigning
       if (response is List) {
         makes = List<Map<String, dynamic>>.from(response);
       } else {
-        // If the response is not a list, handle it gracefully
         makes = [];
       }
     } catch (e) {
-      // In case of an error, clear the makes list
       makes = [];
-      // Optionally, you can log the error: print('Error fetching makes: $e');
     } finally {
-      // 3. ALWAYS set the loading flag to false and notify the UI
       _isFetchingMakes = false;
       notifyListeners();
     }
   }
 
-  Future<void> fetchConditions(String statusId) async {
+  void resetConditionState() {
+    if (selectedConditionId != null || conditions.isNotEmpty) {
+      selectedConditionId = null;
+      conditions = [];
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateContainerStatus(String? statusId) async {
+    if (selectedContainerStatusId == statusId) return;
+
     selectedContainerStatusId = statusId;
 
-    final status =
-        containerStatus.firstWhere(
-              (c) => c['ID'].toString() == statusId,
-            )['Status']
-            as String;
-
-    final response = await _apiService.postRequest(ApiEndpoints.getCondition, {
-      "ID": int.parse(statusId),
-      "Status": status,
-    }, authToken: ApiEndpoints.surveyAuthToken);
-
-    // Ensure 'conditions' is always a list
-    if (response is List) {
-      conditions = response;
-      debugPrint('Conditions Response: $response');
-    } else if (response is Map<String, dynamic>) {
-      conditions = [response]; // Wrap in a list
-    } else {
+    if (statusId == null || statusId.isEmpty) {
+      _isFetchingConditions = false;
       conditions = [];
+      notifyListeners();
+      return;
     }
 
+    _isFetchingConditions = true;
     notifyListeners();
+
+    try {
+      final status =
+          containerStatus.firstWhere(
+                (c) => c['ID'].toString() == statusId,
+                orElse: () => {'Status': ''},
+              )['Status']
+              as String;
+
+      final response = await _apiService.postRequest(
+        ApiEndpoints.getCondition,
+        {"ID": int.parse(statusId), "Status": status},
+        authToken: ApiEndpoints.surveyAuthToken,
+      );
+
+      if (response is List) {
+        conditions = response;
+      } else {
+        conditions = [];
+      }
+    } catch (e) {
+      debugPrint('❌ Error fetching conditions: $e');
+      conditions = [];
+    } finally {
+      _isFetchingConditions = false;
+      notifyListeners();
+    }
   }
 
   Future<void> fetchDropdowns() async {
-    // ADD THIS GUARD CLAUSE at the top of the method
     if (_buId == null) {
       debugPrint(
         "⚠️ fetchDropdowns called but BUID is null. Aborting API calls.",
       );
-      return; // Stop the function here
+      return;
     }
-    // SET LOADING TO TRUE AT THE START
     _isDropdownsLoading = true;
     notifyListeners();
 
@@ -727,11 +733,45 @@ class PreGateInProvider extends ChangeNotifier {
     }
   }
 
-  void loadFromSurvey(Survey survey) {
+  static const Map<String, String> _monthAbbreviationToNumber = {
+    'JAN': '1',
+    'FEB': '2',
+    'MAR': '3',
+    'APR': '4',
+    'MAY': '5',
+    'JUN': '6',
+    'JUL': '7',
+    'AUG': '8',
+    'SEP': '9',
+    'OCT': '10',
+    'NOV': '11',
+    'DEC': '12',
+  };
+
+  static const Map<String, String> _monthNumberToAbbreviation = {
+    '1': 'JAN',
+    '2': 'FEB',
+    '3': 'MAR',
+    '4': 'APR',
+    '5': 'MAY',
+    '6': 'JUN',
+    '7': 'JUL',
+    '8': 'AUG',
+    '9': 'SEP',
+    '10': 'OCT',
+    '11': 'NOV',
+    '12': 'DEC',
+  };
+
+  Future<void> loadFromSurvey(Survey survey) async {
+    surveyIdForEdit = int.tryParse(survey.id ?? '0');
     containerNoController.text = survey.container.containerNo;
     grossWtController.text = survey.container.grossWeight.toString();
     tareWtController.text = survey.container.tareWeight.toString();
-    mfgMonthController.text = survey.container.mfgMonth;
+    payload = survey.container.payload;
+    selectedMfgMonth =
+        _monthAbbreviationToNumber[survey.container.mfgMonth.toUpperCase()] ??
+        '';
     mfgYearController.text = survey.container.mfgYear;
     vehicleNoController.text = survey.transporter.vehicleNo;
     driverNameController.text = survey.transporter.driverName;
@@ -741,7 +781,52 @@ class PreGateInProvider extends ChangeNotifier {
     doDateController.text = survey.details.doDate;
     remarksController.text = survey.details.description;
     cscAspController.text = survey.details.cscAsp;
-    photos = survey.photos;
+    photos = List.from(survey.photos);
+
+    final selectedShippingLine = shippingLines.firstWhere(
+      (element) => element['SLName'] == survey.container.shippingLine,
+      orElse: () => null,
+    );
+    if (selectedShippingLine != null) {
+      selectedSlId = selectedShippingLine['SLID'].toString();
+    }
+
+    final selectedIso = isoCodes.firstWhere(
+      (element) => element['ISOCode'] == survey.container.isoCode,
+      orElse: () => null,
+    );
+    if (selectedIso != null) {
+      selectedIsoId = selectedIso['ISOID'].toString();
+      containerValues['isoCode'] = survey.container.isoCode;
+      await fetchIsoDetails(survey.container.isoCode);
+    }
+
+    final selectedSurveyType = surveyTypes.firstWhere(
+      (element) => element['SurveyTypeName'] == survey.details.surveyType,
+      orElse: () => null,
+    );
+    if (selectedSurveyType != null) {
+      selectedSurveyTypeId = selectedSurveyType['SurveyTypeID'].toString();
+    }
+
+    final selectedStatus = containerStatus.firstWhere(
+      (element) => element['Status'] == survey.details.containerInStatus,
+      orElse: () => null,
+    );
+
+    if (selectedStatus != null) {
+      await updateContainerStatus(selectedStatus['ID'].toString());
+
+      final selectedCondition = conditions.firstWhere(
+        (element) => element['Condition'] == survey.details.condition,
+        orElse: () => null,
+      );
+
+      if (selectedCondition != null) {
+        selectedConditionId = selectedCondition['ID'].toString();
+      }
+    }
+
     notifyListeners();
   }
 
@@ -764,17 +849,47 @@ class PreGateInProvider extends ChangeNotifier {
   }
 
   Future<void> pickAndProcessImages(
+    BuildContext context,
     ImageSource source,
     String docName,
     String description,
   ) async {
+    if (photos.length >= maxPhotos) {
+      debugPrint("Photo limit reached. Cannot add more photos.");
+      await CautionDialog.show(
+        context: context,
+        title: 'Photo Limit Reached',
+        message:
+            'You can only upload a maximum of $maxPhotos photos per survey.',
+        icon: Icons.info_outline,
+        iconColor: Colors.blue,
+      );
+      return;
+    }
+
     isProcessingImage = true;
     notifyListeners();
 
     final ImagePicker picker = ImagePicker();
     final List<XFile> pickedFiles;
+
+    final int remainingSlots = maxPhotos - photos.length;
+
     if (source == ImageSource.gallery) {
-      pickedFiles = await picker.pickMultiImage();
+      final selectedFiles = await picker.pickMultiImage();
+      if (selectedFiles.length > remainingSlots) {
+        pickedFiles = selectedFiles.sublist(0, remainingSlots);
+        await CautionDialog.show(
+          context: context,
+          title: 'Some Images Not Added',
+          message:
+              'You selected ${selectedFiles.length} images, but only ${pickedFiles.length} could be added to stay within the $maxPhotos photo limit.',
+          icon: Icons.info_outline,
+          iconColor: Colors.blue,
+        );
+      } else {
+        pickedFiles = selectedFiles;
+      }
     } else {
       final XFile? pickedFile = await picker.pickImage(source: source);
       pickedFiles = pickedFile != null ? [pickedFile] : [];
@@ -790,7 +905,7 @@ class PreGateInProvider extends ChangeNotifier {
     final RootIsolateToken token = RootIsolateToken.instance!;
 
     for (var file in pickedFiles) {
-      if (photos.length >= 50) break;
+      if (photos.length >= maxPhotos) break;
 
       final timestampedFile = await compute(_processImageInBackground, {
         'filePath': file.path,
@@ -829,12 +944,145 @@ class PreGateInProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updatePhotoDetails(
+    Photo photoToUpdate,
+    String newDocName,
+    String newDescription,
+  ) {
+    final index = photos.indexWhere((p) => p.id == photoToUpdate.id);
+    if (index != -1) {
+      photos[index] = Photo(
+        id: photoToUpdate.id,
+        url: photoToUpdate.url,
+        timestamp: photoToUpdate.timestamp,
+        docName: newDocName,
+        description: newDescription,
+      );
+      notifyListeners();
+    }
+  }
+
+  // ADDED: New method to efficiently update all photos in a group.
+  void updatePhotoGroupDetails(
+    String oldDocName,
+    String newDocName,
+    String newDescription,
+  ) {
+    // Create a new list to avoid concurrent modification errors.
+    List<Photo> updatedPhotos = [];
+    for (var photo in photos) {
+      if (photo.docName == oldDocName) {
+        // If the photo is in the group, create a new Photo object with updated details.
+        updatedPhotos.add(
+          Photo(
+            id: photo.id,
+            url: photo.url,
+            timestamp: photo.timestamp,
+            docName: newDocName,
+            description: newDescription,
+          ),
+        );
+      } else {
+        // Otherwise, add the original photo to the new list.
+        updatedPhotos.add(photo);
+      }
+    }
+    // Replace the old list with the new one and notify listeners.
+    photos = updatedPhotos;
+    notifyListeners();
+  }
+
+  Future<void> replacePhoto(Photo photoToReplace, ImageSource source) async {
+    isProcessingImage = true;
+    notifyListeners();
+
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: source);
+
+    if (pickedFile == null) {
+      isProcessingImage = false;
+      notifyListeners();
+      return;
+    }
+
+    final tempDir = await path_provider.getTemporaryDirectory();
+    final token = RootIsolateToken.instance!;
+
+    final timestampedFile = await compute(_processImageInBackground, {
+      'filePath': pickedFile.path,
+      'token': token,
+    });
+
+    if (timestampedFile != null) {
+      final targetPath = p.join(
+        tempDir.path,
+        "${p.basenameWithoutExtension(pickedFile.path)}_${DateTime.now().millisecondsSinceEpoch}.jpg",
+      );
+
+      final compressedFile = await FlutterImageCompress.compressAndGetFile(
+        timestampedFile.path,
+        targetPath,
+        quality: 25,
+        format: CompressFormat.jpeg,
+      );
+
+      if (compressedFile != null) {
+        final index = photos.indexWhere((p) => p.id == photoToReplace.id);
+        if (index != -1) {
+          photos[index] = Photo(
+            id: photoToReplace.id,
+            url: compressedFile.path,
+            timestamp: DateTime.now().toIso8601String(),
+            docName: photoToReplace.docName,
+            description: photoToReplace.description,
+          );
+        }
+      }
+    }
+
+    isProcessingImage = false;
+    notifyListeners();
+  }
+
   Future<List<Map<String, dynamic>>> uploadAttachments() async {
     List<Map<String, dynamic>> uploadedAttachments = [];
 
     if (_userId == null || _buId == null) return uploadedAttachments;
 
     for (var photo in photos) {
+      final bool isExistingPhoto =
+          photo.url.contains(RegExp(r'^[a-zA-Z]:\\')) ||
+          photo.url.startsWith('http');
+
+      if (isExistingPhoto) {
+        debugPrint("✅ Detected an existing photo. Original path: ${photo.url}");
+
+        String serverPath;
+        if (photo.url.startsWith('http')) {
+          final uri = Uri.parse(photo.url);
+          serverPath = uri.queryParameters['FilePath'] ?? photo.url;
+        } else {
+          serverPath = photo.url;
+        }
+
+        final fileName = serverPath.split(RegExp(r'[/\\]')).last;
+
+        debugPrint("✅ Extracted FileName: $fileName");
+
+        uploadedAttachments.add({
+          'DocName': photo.docName,
+          'FilePath': fileName,
+          'FilePath1': serverPath,
+          'ContainerNo': containerNoController.text.trim(),
+          'FileName': fileName,
+          'FileDesc': photo.description,
+          'RelativePath':
+              "/Uploads/TempDocument/Location $_buId/PreGateINSurvey/${containerNoController.text.trim()}/$fileName",
+          'ContentType': 'image/jpeg',
+        });
+        continue;
+      }
+      debugPrint("Uploading a new photo from local path: ${photo.url}");
       final file = File(photo.url);
 
       try {
@@ -854,10 +1102,7 @@ class PreGateInProvider extends ChangeNotifier {
 
         if (response is List && response.isNotEmpty) {
           final uploadedData = Map<String, dynamic>.from(response.first);
-
-          // Override the FileDesc with our description
           uploadedData['FileDesc'] = photo.description;
-
           uploadedAttachments.add(uploadedData);
         } else {
           debugPrint(
@@ -872,7 +1117,7 @@ class PreGateInProvider extends ChangeNotifier {
     return uploadedAttachments;
   }
 
-  Future<bool> saveSurvey(BuildContext context) async {
+  Future<String?> saveSurvey(BuildContext context) async {
     isLoading = true;
     notifyListeners();
 
@@ -886,7 +1131,7 @@ class PreGateInProvider extends ChangeNotifier {
       }
       isLoading = false;
       notifyListeners();
-      return false;
+      return "User session expired. Please log in again.";
     }
 
     try {
@@ -899,7 +1144,7 @@ class PreGateInProvider extends ChangeNotifier {
       }
 
       final body = {
-        "SurveyID": 0,
+        "SurveyID": surveyIdForEdit ?? 0,
         "ContainerNo": containerNoController.text.trim(),
         "ISOCodeID": int.tryParse(selectedIsoId ?? '0') ?? 0,
         "ContainerTypeID": 1,
@@ -910,7 +1155,8 @@ class PreGateInProvider extends ChangeNotifier {
         "PayLoad": payload?.toStringAsFixed(2) ?? '0',
         "Category": category.toUpperCase(),
         "MakeID": int.tryParse(selectedMakeId ?? '0') ?? 0,
-        "MFGMonth": mfgMonthController.text.trim(),
+        "MFGMonth":
+            _monthNumberToAbbreviation[selectedMfgMonth?.trim() ?? ''] ?? '',
         "MFGYear": mfgYearController.text.trim(),
         "FromLocation": fromLocationController.text.trim(),
         "IsValidContainer": containerValid ? 1 : 0,
@@ -940,8 +1186,15 @@ class PreGateInProvider extends ChangeNotifier {
 
       debugPrint('📤 Full SaveSurvey Payload:\n$body');
 
+      final bool isUpdating = surveyIdForEdit != null && surveyIdForEdit! > 0;
+      final String endpoint = isUpdating
+          ? ApiEndpoints.updatePreGateInSurvey
+          : ApiEndpoints.insertPreGateInSurvey;
+
+      debugPrint("✅ Using endpoint: $endpoint (Is Updating: $isUpdating)");
+
       final response = await _apiService.postRequest(
-        ApiEndpoints.insertPreGateInSurvey,
+        endpoint,
         body,
         authToken: ApiEndpoints.surveyAuthToken,
       );
@@ -949,14 +1202,20 @@ class PreGateInProvider extends ChangeNotifier {
       debugPrint('✅ SaveSurvey API Response:\n$response');
 
       if (response is Map && response['StatusCode'] == 1) {
-        resetFields();
-        return true;
+        resetFields(notify: false);
+        return null;
       } else {
-        throw Exception(response['StatusMessage'] ?? 'Unknown API error');
+        return response['StatusMessage'] ?? 'Unknown API error';
       }
     } catch (e) {
       debugPrint('❌ SaveSurvey Exception: $e');
-      return false;
+      final errorMessage = e.toString();
+      if (errorMessage.contains(
+        'A survey for this container number has already been done.',
+      )) {
+        return 'A survey for this container number has already been done.';
+      }
+      return 'An unexpected error occurred. Please try again.';
     } finally {
       isLoading = false;
       notifyListeners();

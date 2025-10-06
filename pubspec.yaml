@@ -46,10 +46,12 @@ dependencies:
   lottie: ^3.3.2
   image: ^4.5.4
   cached_network_image: ^3.4.1
+  package_rename: ^1.10.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  package_rename: ^1.10.0
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -103,3 +105,15 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+
+# Configuration for the package_rename tool
+package_rename_config:
+  android:
+    app_name: "eSquare vNext"
+    package_name: "com.proactii.esquarevnext"
+
+  ios:
+    app_name: "eSquare vNext"
+    bundle_name: "eSquare vNext"
+    package_name: "com.proactii.esquarevnext"
