@@ -3,6 +3,7 @@ import 'package:esquare/providers/pre_gate_inPdr.dart';
 import 'package:esquare/screens/pre_survey/tabs/widgets/container_number_field.dart';
 import 'package:esquare/widgets/caution_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -32,29 +33,7 @@ class _ContainerTabState extends State<ContainerTab> {
     _provider.grossWtController.addListener(_validateWeights);
     _provider.tareWtController.addListener(_validateWeights);
     _provider.mfgYearController.addListener(_validateMfgYear);
-    _containerNoFocus.addListener(_onContainerNoFocusChange);
     _isoCodeController.text = _provider.containerValues['isoCode'] ?? '';
-  }
-
-  void _onContainerNoFocusChange() async {
-    // --- FIX: Check if the widget is still mounted before proceeding ---
-    if (!mounted) return;
-
-    if (!_containerNoFocus.hasFocus) {
-      final value = _provider.containerNoController.text;
-      final formatRegex = RegExp(r'^[A-Z]{4}[0-9]{7}$');
-      if (value.isNotEmpty && !formatRegex.hasMatch(value)) {
-        if (mounted && !_isShowingValidationDialog) {
-          _isShowingValidationDialog = true;
-          await CautionDialog.show(
-            context: context,
-            title: 'Invalid Format',
-            message: 'Container number format must be ABCD1234567.',
-          );
-          _isShowingValidationDialog = false;
-        }
-      }
-    }
   }
 
   void _validateWeights() async {
@@ -191,7 +170,7 @@ class _ContainerTabState extends State<ContainerTab> {
     _provider.grossWtController.removeListener(_validateWeights);
     _provider.tareWtController.removeListener(_validateWeights);
     _provider.mfgYearController.removeListener(_validateMfgYear);
-    _containerNoFocus.removeListener(_onContainerNoFocusChange);
+    // _containerNoFocus.removeListener(_onContainerNoFocusChange);
     _containerNoFocus.dispose();
     _isoFocus.dispose();
     _locationFocus.dispose();
@@ -316,9 +295,11 @@ class _ContainerTabState extends State<ContainerTab> {
             ),
             const SizedBox(height: 16),
             if (provider.isFetchingDetails)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(vertical: 40.0),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(
+                  child: SvgPicture.asset('assets/anims/loading.json'),
+                ),
               )
             else
               Row(
@@ -387,10 +368,14 @@ class _ContainerTabState extends State<ContainerTab> {
                 Expanded(
                   child: (provider.containerType?.toUpperCase() == 'RF')
                       ? (provider.isFetchingMakes
-                            ? const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 8.0),
+                            ? Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8.0,
+                                ),
                                 child: Center(
-                                  child: CircularProgressIndicator(),
+                                  child: SvgPicture.asset(
+                                    'assets/anims/loading.json',
+                                  ),
                                 ),
                               )
                             : SelectInputConfig(
@@ -562,7 +547,7 @@ class _ContainerTabState extends State<ContainerTab> {
             const SizedBox(height: 16),
             TextInputConfig(
               key: 'fromLocation',
-              label: 'From Location',
+              label: 'Location',
               hint: 'Port of Rotterdam',
               uppercase: true,
               maxLength: 15,

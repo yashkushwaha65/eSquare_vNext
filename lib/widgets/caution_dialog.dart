@@ -56,11 +56,59 @@ class CautionDialog {
     );
   }
 
+  /// NEW: Shows a confirmation dialog for deleting a photo group.
+  static Future<bool> showDeleteConfirmation(
+    BuildContext context, {
+    required String groupName,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.delete_forever, color: Colors.red, size: 28),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Confirm Deletion',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to delete all photos in the "$groupName" group? This action cannot be undone.',
+            style: const TextStyle(fontSize: 15, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false), // "Cancel"
+              child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true), // "Delete"
+              child: const Text('DELETE', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+    // Return false if the dialog is dismissed
+    return result ?? false;
+  }
 
   /// NEW: Shows a confirmation dialog for an invalid container number
   static Future<bool> showInvalidContainerConfirmation(
-      BuildContext context,
-      ) async {
+    BuildContext context,
+  ) async {
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -107,7 +155,6 @@ class CautionDialog {
     // Return false if the dialog is dismissed (e.g., by back button)
     return result ?? false;
   }
-
 
   /// Shows an invalid input dialog specifically for ISO codes
   static Future<void> showInvalidIsoCode(BuildContext context) async {

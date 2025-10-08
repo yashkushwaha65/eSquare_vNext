@@ -26,7 +26,7 @@ class MyHttpOverrides extends HttpOverrides {
 
 void main() {
   HttpOverrides.global = MyHttpOverrides();
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -40,15 +40,10 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PreGateInSummaryProvider()),
         ChangeNotifierProvider(create: (_) => PostRepairSummaryProvider()),
         ChangeNotifierProxyProvider<AuthProvider, PreGateInProvider>(
-          // `create` builds the initial instance of PreGateInProvider.
           create: (context) => PreGateInProvider(),
-
-          // `update` is the magic part. It re-runs whenever AuthProvider changes.
-          // `auth` is the AuthProvider instance.
-          // `previousProvider` is the existing PreGateInProvider instance.
-          // This line passes the user from `auth` into your provider's `updateUser` method.
-          update: (context, auth, previousProvider) =>
-              previousProvider!..updateUser(auth.user),
+          update: (context, auth, previousProvider) => previousProvider!
+            ..updateUser(auth.user)
+            ..updateMaxPhotosTotal(auth.preImgLmt),
         ),
       ],
       child: MaterialApp(
@@ -69,3 +64,4 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+

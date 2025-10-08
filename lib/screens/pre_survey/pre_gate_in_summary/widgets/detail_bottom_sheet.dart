@@ -1,3 +1,4 @@
+// lib/screens/pre_survey/pre_gate_in_summary/widgets/detail_bottom_sheet.dart
 import 'package:esquare/core/models/containerMdl.dart';
 import 'package:esquare/core/models/detailsMdl.dart';
 import 'package:esquare/core/models/photoMdl.dart';
@@ -7,6 +8,7 @@ import 'package:esquare/core/models/transporterMdl.dart';
 import 'package:esquare/core/theme/app_theme.dart';
 import 'package:esquare/screens/pre_survey/pre_gate_in_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 
 class DetailBottomSheet extends StatelessWidget {
   final PreGateInSummary item;
@@ -19,7 +21,6 @@ class DetailBottomSheet extends StatelessWidget {
       containerId: item.containerNo,
       container: ContainerModel(
         id: '',
-        // Not available in summary
         containerNo: item.containerNo,
         mfgMonth: item.mfgMonth,
         mfgYear: item.mfgYear.toString(),
@@ -30,29 +31,25 @@ class DetailBottomSheet extends StatelessWidget {
         isoCode: item.isoCode,
         sizeType: '${item.size} ${item.containerType}',
         status: item.containerStatus,
+        fromLocation: item.location,
       ),
       transporter: Transporter(
         vehicleNo: item.vehicleNo,
-        transporterName: '', // Not available in summary
-        driverLicense: '', // Not available in summary
-        driverName: '', // Not available in summary
+        transporterName: item.transporter,
+        driverLicense: item.driverLicenceNo,
+        driverName: item.driverName,
       ),
       details: Details(
         category: item.category,
-        examination: '',
-        // Not available in summary
+        examination: item.examinType,
         surveyType: item.surveyType,
         containerInStatus: item.containerStatus,
-        grade: '',
-        // Not available in summary
-        cscAsp: '',
-        // Not available in summary
-        doNo: '',
-        // Not available in summary
-        doDate: '',
-        // Not available in summary
-        description: '',
-        condition: item.condition, // Not available in summary
+        grade: item.grade,
+        cscAsp: item.cscAsp,
+        doNo: item.doNo,
+        doDate: item.doValidityDate,
+        description: item.remarks,
+        condition: item.condition,
       ),
       photos: item.attachments
           .map(
@@ -196,12 +193,14 @@ class DetailBottomSheet extends StatelessWidget {
                   ),
                   _buildDetailRow('MFG Month', item.mfgMonth),
                   _buildDetailRow('MFG Year', item.mfgYear.toString()),
-                  // Note: Make and From Location are not available in summary
+                  _buildDetailRow('Location', item.location.toString()),
                 ]),
                 const SizedBox(height: 20),
                 _buildDetailSection('Transport Details', [
                   _buildDetailRow('Vehicle Number', item.vehicleNo),
-                  // Note: Transporter Name, Driver Name, and License No are not available in summary
+                  _buildDetailRow('Transporter', item.transporter),
+                  _buildDetailRow('Driver Name', item.driverName),
+                  _buildDetailRow('Driver Licence No', item.driverLicenceNo),
                 ]),
                 const SizedBox(height: 20),
                 _buildDetailSection('Survey Details', [
@@ -210,7 +209,8 @@ class DetailBottomSheet extends StatelessWidget {
                   _buildDetailRow('Survey Type', item.surveyType),
                   _buildDetailRow('Container Status', item.containerStatus),
                   _buildDetailRow('Condition', item.condition),
-                  // Note: Other survey details are not available in summary
+                  _buildDetailRow('Examined Type', item.examinType),
+                  _buildDetailRow('Remarks', item.remarks.toString()),
                 ]),
                 if (item.attachments.isNotEmpty) ...[
                   const SizedBox(height: 20),
@@ -241,10 +241,13 @@ class DetailBottomSheet extends StatelessWidget {
                                   fit: BoxFit.cover,
                                   loadingBuilder:
                                       (context, child, loadingProgress) {
-                                        if (loadingProgress == null)
+                                        if (loadingProgress == null) {
                                           return child;
-                                        return const Center(
-                                          child: CircularProgressIndicator(),
+                                        }
+                                        return Center(
+                                          child: SvgPicture.asset(
+                                            'assets/anims/loading.json',
+                                          ),
                                         );
                                       },
                                   errorBuilder: (context, error, stackTrace) =>

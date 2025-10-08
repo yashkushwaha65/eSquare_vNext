@@ -13,8 +13,47 @@ class AuthProvider extends ChangeNotifier {
   bool isLoading = false;
   UserModel? user;
   String? errorMessage;
+  int? preImgLmt;
+  int? postImgLmt;
+  int? finalImgLmt;
 
   bool get isLoggedIn => user != null;
+
+  Future<void> fetchImageLimits(int buId) async {
+    try {
+      final response = await _apiService.postRequest(ApiEndpoints.getImgLimit, {
+        "BUID": buId,
+      }, authToken: ApiEndpoints.imgLimitAuthToken);
+
+      // --- FIX START ---
+      // The API might return a single map or a list with one map.
+      Map<String, dynamic>? limitsData;
+      if (response is List && response.isNotEmpty) {
+        limitsData = response.first as Map<String, dynamic>;
+      } else if (response is Map<String, dynamic>) {
+        limitsData = response;
+      }
+
+      if (limitsData != null) {
+        preImgLmt = limitsData['PreImgLMT'];
+        postImgLmt = limitsData['PostImgLMT'];
+        finalImgLmt = limitsData['FinalImgLMT'];
+
+        // Add debug prints as requested
+        debugPrint(' Fetched Image Limits ');
+        debugPrint('Pre-Image Limit: $preImgLmt');
+        debugPrint('Post-Image Limit: $postImgLmt');
+        debugPrint('Final-Image Limit: $finalImgLmt');
+
+        notifyListeners();
+      } else {
+        debugPrint("Image limits data is null or in an unexpected format.");
+      }
+      // --- FIX END ---
+    } catch (e) {
+      debugPrint("Failed to fetch image limits: $e");
+    }
+  }
 
   Future<void> login(
     String username,
@@ -47,6 +86,7 @@ class AuthProvider extends ChangeNotifier {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString("user", jsonEncode(user!.toJson()));
         debugPrint("💾 User saved to SharedPreferences under key 'user'");
+        await fetchImageLimits(user!.buid);
 
         errorMessage = null;
       } else {
@@ -70,6 +110,9 @@ class AuthProvider extends ChangeNotifier {
     if (userData != null) {
       final decoded = jsonDecode(userData);
       user = UserModel.fromJson(decoded);
+      if (user != null) {
+        await fetchImageLimits(user!.buid);
+      }
       notifyListeners();
     }
   }
@@ -81,6 +124,9 @@ class AuthProvider extends ChangeNotifier {
 
     // 2. Reset in-memory user and notify UI
     user = null;
+    preImgLmt = null;
+    postImgLmt = null;
+    finalImgLmt = null;
     notifyListeners();
 
     // 3. Drop all routes and show login

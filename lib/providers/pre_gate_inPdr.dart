@@ -1,6 +1,7 @@
 // lib/providers/pre_gate_inPdr.dart
 import 'dart:io';
 
+import 'package:camera/camera.dart';
 import 'package:esquare/core/models/photoMdl.dart';
 import 'package:esquare/core/models/userMdl.dart';
 import 'package:esquare/widgets/caution_dialog.dart';
@@ -17,6 +18,7 @@ import 'package:path_provider/path_provider.dart' as path_provider;
 import '../api_endpoints.dart';
 import '../core/models/surveyMdl.dart';
 import '../core/services/api_services.dart';
+import '../screens/pre_survey/pre_gate_in_summary/widgets/custom_camera_screen.dart';
 
 // Helper function to calculate the width of the text
 num textWidth(img.BitmapFont font, String text) {
@@ -101,6 +103,65 @@ Future<File?> _processImageInBackground(Map<String, dynamic> args) async {
   return timestampedFile;
 }
 
+Future<File?> _processImageForSubmission(Map<String, dynamic> args) async {
+  final String filePath = args['filePath'];
+  final RootIsolateToken token = args['token'];
+
+  BackgroundIsolateBinaryMessenger.ensureInitialized(token);
+
+  final tempDir = await path_provider.getTemporaryDirectory();
+  final originalFile = File(filePath);
+  final image = img.decodeImage(await originalFile.readAsBytes());
+  if (image == null) return null;
+
+  final timestamp = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
+  final font = img.arial48;
+
+  final textImage = img.Image(
+    width: textWidth(font, timestamp).toInt(),
+    height: font.lineHeight,
+  );
+  img.drawString(
+    textImage,
+    timestamp,
+    font: font,
+    color: img.ColorRgb8(255, 255, 255),
+  );
+
+  double targetWidth = image.width * 0.40;
+  double scale = targetWidth / textImage.width;
+  if (scale < 1.0) scale = 1.0;
+
+  final scaledTextImage = img.copyResize(
+    textImage,
+    width: (textImage.width * scale).round(),
+    height: (textImage.height * scale).round(),
+    interpolation: img.Interpolation.linear,
+  );
+
+  const padding = 20;
+  final xPos = image.width - scaledTextImage.width - padding;
+  final yPos = image.height - scaledTextImage.height - padding;
+
+  img.fillRect(
+    image,
+    x1: xPos - 10,
+    y1: yPos - 10,
+    x2: xPos + scaledTextImage.width + 10,
+    y2: yPos + scaledTextImage.height + 10,
+    color: img.ColorRgba8(0, 0, 0, 150),
+    radius: 10,
+  );
+
+  img.compositeImage(image, scaledTextImage, dstX: xPos, dstY: yPos);
+
+  final processedFile = File(
+    p.join(tempDir.path, '${p.basename(filePath)}_processed.jpg'),
+  );
+  await processedFile.writeAsBytes(img.encodeJpg(image, quality: 85));
+  return processedFile;
+}
+
 class PreGateInProvider extends ChangeNotifier {
   bool _isValidatingContainer = false;
 
@@ -117,7 +178,9 @@ class PreGateInProvider extends ChangeNotifier {
 
   bool get isFetchingConditions => _isFetchingConditions;
 
-  static const int maxPhotos = 5;
+  int _maxPhotosTotal = 50;
+
+  int get maxPhotosTotal => _maxPhotosTotal;
 
   final ApiService _apiService = ApiService();
 
@@ -212,6 +275,14 @@ class PreGateInProvider extends ChangeNotifier {
     return (completed / 10 * 100);
   }
 
+  void updateMaxPhotosTotal(int? limit) {
+    if (limit != null && limit > 0) {
+      _maxPhotosTotal = limit;
+
+      notifyListeners();
+    }
+  }
+
   bool validateForm() {
     errors.clear();
 
@@ -270,9 +341,9 @@ class PreGateInProvider extends ChangeNotifier {
       }
     }
 
-    if (selectedTransId == null) {
-      errors['transporterName'] = 'Transporter Name is required.';
-    }
+    // if (selectedTransId == null) {
+    //   errors['transporterName'] = 'Transporter Name is required.';
+    // }
 
     // --- Survey Tab Validations ---
     if (selectedExaminedId == null) {
@@ -307,12 +378,20 @@ class PreGateInProvider extends ChangeNotifier {
   }
 
   void updateUser(UserModel? user) {
-    bool justLoggedIn = (_buId == null && user?.buid != null);
+    final bool isNewUser = user != null && user.buid != _buId;
+    final bool isLoggingOut = user == null && _buId != null;
+
+    if (isNewUser || isLoggingOut) {
+      debugPrint(
+        "User changed or logged out. Resetting PreGateInProvider state.",
+      );
+      resetFields();
+    }
 
     _userId = user?.userId;
     _buId = user?.buid;
 
-    if (justLoggedIn) {
+    if (user != null) {
       debugPrint(
         "✅ User data received in provider. Fetching dropdowns with BUID: $_buId",
       );
@@ -391,6 +470,40 @@ class PreGateInProvider extends ChangeNotifier {
   void removePhoto(Photo photo) {
     photos.remove(photo);
     notifyListeners();
+  }
+
+  Future<bool> checkSurveyDone(String containerNo) async {
+    if (_buId == null) {
+      debugPrint("checkSurveyDone failed: BUID is null.");
+      return false;
+    }
+    try {
+      final res = await _apiService.postRequest(
+        ApiEndpoints.checkContainerSurveyDone,
+        {"ContainerNo": containerNo, "BUID": _buId},
+        authToken: ApiEndpoints.surveyAuthToken,
+      );
+
+      debugPrint("CheckContainerSurveyDone API Response: $res");
+
+      // FIX: Handle the response which can be a List containing a Map
+      if (res is List && res.isNotEmpty) {
+        final firstItem = res.first;
+        if (firstItem is Map && firstItem.containsKey('Status')) {
+          // API returns boolean true/false
+          return firstItem['Status'] == true;
+        }
+      } else if (res is Map && res.containsKey('Status')) {
+        // Also handle if API returns a single map directly
+        return res['Status'] == true;
+      }
+
+      // If response is not in the expected format, default to false.
+      return false;
+    } catch (e) {
+      debugPrint("checkSurveyDone error: $e");
+      return false;
+    }
   }
 
   Future<bool> validateContainer(String containerNo) async {
@@ -764,6 +877,9 @@ class PreGateInProvider extends ChangeNotifier {
   };
 
   Future<void> loadFromSurvey(Survey survey) async {
+    // Reset fields before loading new data to avoid state conflicts
+    resetFields(notify: false);
+
     surveyIdForEdit = int.tryParse(survey.id ?? '0');
     containerNoController.text = survey.container.containerNo;
     grossWtController.text = survey.container.grossWeight.toString();
@@ -782,17 +898,35 @@ class PreGateInProvider extends ChangeNotifier {
     remarksController.text = survey.details.description;
     cscAspController.text = survey.details.cscAsp;
     photos = List.from(survey.photos);
+    fromLocationController.text = survey.container.fromLocation;
 
+    // Find and set Shipping Line ID
     final selectedShippingLine = shippingLines.firstWhere(
-      (element) => element['SLName'] == survey.container.shippingLine,
+      (element) =>
+          (element['SLName'] as String? ?? '').trim().toLowerCase() ==
+          survey.container.shippingLine.trim().toLowerCase(),
       orElse: () => null,
     );
     if (selectedShippingLine != null) {
       selectedSlId = selectedShippingLine['SLID'].toString();
     }
 
+    // Find and set Transporter ID
+    final selectedTransporter = transporters.firstWhere(
+      (element) =>
+          (element['Transporter'] as String? ?? '').trim().toLowerCase() ==
+          survey.transporter.transporterName.trim().toLowerCase(),
+      orElse: () => null,
+    );
+    if (selectedTransporter != null) {
+      selectedTransId = selectedTransporter['TransporterID'].toString();
+    }
+
+    // Find and set ISO Code ID
     final selectedIso = isoCodes.firstWhere(
-      (element) => element['ISOCode'] == survey.container.isoCode,
+      (element) =>
+          (element['ISOCode'] as String? ?? '').trim().toLowerCase() ==
+          survey.container.isoCode.trim().toLowerCase(),
       orElse: () => null,
     );
     if (selectedIso != null) {
@@ -801,24 +935,45 @@ class PreGateInProvider extends ChangeNotifier {
       await fetchIsoDetails(survey.container.isoCode);
     }
 
+    // Find and set Survey Type ID
     final selectedSurveyType = surveyTypes.firstWhere(
-      (element) => element['SurveyTypeName'] == survey.details.surveyType,
+      (element) =>
+          (element['SurveyTypeName'] as String? ?? '').trim().toLowerCase() ==
+          survey.details.surveyType.trim().toLowerCase(),
       orElse: () => null,
     );
     if (selectedSurveyType != null) {
       selectedSurveyTypeId = selectedSurveyType['SurveyTypeID'].toString();
     }
 
+    // Find and set Examined ID
+    final selectedExamineType = examineList.firstWhere(
+      (element) =>
+          (element['ExamineType'] as String? ?? '').trim().toLowerCase() ==
+          survey.details.examination.trim().toLowerCase(),
+      orElse: () => null,
+    );
+    if (selectedExamineType != null) {
+      selectedExaminedId = selectedExamineType['ExamineID'].toString();
+    }
+
+    // Find, set, and fetch related data for Container Status
     final selectedStatus = containerStatus.firstWhere(
-      (element) => element['Status'] == survey.details.containerInStatus,
+      (element) =>
+          (element['Status'] as String? ?? '').trim().toLowerCase() ==
+          survey.details.containerInStatus.trim().toLowerCase(),
       orElse: () => null,
     );
 
     if (selectedStatus != null) {
+      // This will set the status and fetch conditions
       await updateContainerStatus(selectedStatus['ID'].toString());
 
+      // Now that conditions are fetched, find and set the Condition ID
       final selectedCondition = conditions.firstWhere(
-        (element) => element['Condition'] == survey.details.condition,
+        (element) =>
+            (element['Condition'] as String? ?? '').trim().toLowerCase() ==
+            survey.details.condition.trim().toLowerCase(),
         orElse: () => null,
       );
 
@@ -852,15 +1007,18 @@ class PreGateInProvider extends ChangeNotifier {
     BuildContext context,
     ImageSource source,
     String docName,
-    String description,
-  ) async {
-    if (photos.length >= maxPhotos) {
+    String description, {
+    bool allowMultiple = false,
+  }) async {
+    final int currentPhotoCount = photos.length;
+    if (currentPhotoCount >= _maxPhotosTotal) {
       debugPrint("Photo limit reached. Cannot add more photos.");
+      if (!context.mounted) return;
       await CautionDialog.show(
         context: context,
         title: 'Photo Limit Reached',
         message:
-            'You can only upload a maximum of $maxPhotos photos per survey.',
+            'You can only upload a maximum of $_maxPhotosTotal photos per survey.',
         icon: Icons.info_outline,
         iconColor: Colors.blue,
       );
@@ -871,77 +1029,116 @@ class PreGateInProvider extends ChangeNotifier {
     notifyListeners();
 
     final ImagePicker picker = ImagePicker();
-    final List<XFile> pickedFiles;
+    final List<XFile> pickedFiles = [];
+    final int remainingSlots = _maxPhotosTotal - currentPhotoCount;
 
-    final int remainingSlots = maxPhotos - photos.length;
-
-    if (source == ImageSource.gallery) {
-      final selectedFiles = await picker.pickMultiImage();
-      if (selectedFiles.length > remainingSlots) {
-        pickedFiles = selectedFiles.sublist(0, remainingSlots);
-        await CautionDialog.show(
-          context: context,
-          title: 'Some Images Not Added',
-          message:
-              'You selected ${selectedFiles.length} images, but only ${pickedFiles.length} could be added to stay within the $maxPhotos photo limit.',
-          icon: Icons.info_outline,
-          iconColor: Colors.blue,
-        );
+    try {
+      if (allowMultiple) {
+        if (source == ImageSource.gallery) {
+          final selectedFiles = await picker.pickMultiImage();
+          if (selectedFiles.isNotEmpty) {
+            if (selectedFiles.length > remainingSlots) {
+              pickedFiles.addAll(selectedFiles.sublist(0, remainingSlots));
+              if (context.mounted) {
+                await CautionDialog.show(
+                  context: context,
+                  title: 'Photo Limit Exceeded',
+                  message:
+                      'You can only add $remainingSlots more photos. ${pickedFiles.length} have been added.',
+                );
+              }
+            } else {
+              pickedFiles.addAll(selectedFiles);
+            }
+          }
+        } else {
+          // Custom camera for multiple shots
+          final cameras = await availableCameras();
+          if (context.mounted) {
+            final capturedImages = await Navigator.push<List<XFile>>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => CustomCameraScreen(cameras: cameras),
+              ),
+            );
+            if (capturedImages != null && capturedImages.isNotEmpty) {
+              if (capturedImages.length > remainingSlots) {
+                pickedFiles.addAll(capturedImages.sublist(0, remainingSlots));
+                if (context.mounted) {
+                  await CautionDialog.show(
+                    context: context,
+                    title: 'Photo Limit Exceeded',
+                    message:
+                        'You can only add $remainingSlots more photos. ${pickedFiles.length} have been added.',
+                  );
+                }
+              } else {
+                pickedFiles.addAll(capturedImages);
+              }
+            }
+          }
+        }
       } else {
-        pickedFiles = selectedFiles;
+        final XFile? pickedFile = await picker.pickImage(
+          source: source,
+          preferredCameraDevice: CameraDevice.rear,
+          requestFullMetadata: false,
+        );
+        if (pickedFile != null) {
+          pickedFiles.add(pickedFile);
+        }
       }
-    } else {
-      final XFile? pickedFile = await picker.pickImage(source: source);
-      pickedFiles = pickedFile != null ? [pickedFile] : [];
-    }
 
-    if (pickedFiles.isEmpty) {
+      if (pickedFiles.isEmpty) {
+        isProcessingImage = false;
+        notifyListeners();
+        return;
+      }
+
+      final tempDir = await path_provider.getTemporaryDirectory();
+      final RootIsolateToken token = RootIsolateToken.instance!;
+
+      for (var file in pickedFiles) {
+        if (photos.length >= _maxPhotosTotal) break;
+
+        final timestampedFile = await compute(_processImageInBackground, {
+          'filePath': file.path,
+          'token': token,
+        });
+        if (timestampedFile == null) continue;
+
+        final String fileNameWithoutExt = p.basenameWithoutExtension(file.path);
+        final String targetPath = p.join(
+          tempDir.path,
+          "${fileNameWithoutExt}_${DateTime.now().millisecondsSinceEpoch}.jpg",
+        );
+
+        final XFile? compressedFile =
+            await FlutterImageCompress.compressAndGetFile(
+              timestampedFile.path,
+              targetPath,
+              quality: 25,
+              format: CompressFormat.jpeg,
+            );
+
+        if (compressedFile != null) {
+          photos.add(
+            Photo(
+              id: DateTime.now().millisecondsSinceEpoch.toString(),
+              url: compressedFile.path,
+              timestamp: DateTime.now().toIso8601String(),
+              docName: docName,
+              description: description,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Error picking images: $e");
+    } finally {
       isProcessingImage = false;
       notifyListeners();
-      return;
     }
-
-    final tempDir = await path_provider.getTemporaryDirectory();
-    final RootIsolateToken token = RootIsolateToken.instance!;
-
-    for (var file in pickedFiles) {
-      if (photos.length >= maxPhotos) break;
-
-      final timestampedFile = await compute(_processImageInBackground, {
-        'filePath': file.path,
-        'token': token,
-      });
-      if (timestampedFile == null) continue;
-
-      final String fileNameWithoutExt = p.basenameWithoutExtension(file.path);
-      final String targetPath = p.join(
-        tempDir.path,
-        "${fileNameWithoutExt}_${DateTime.now().millisecondsSinceEpoch}.jpg",
-      );
-
-      final XFile? compressedFile =
-          await FlutterImageCompress.compressAndGetFile(
-            timestampedFile.path,
-            targetPath,
-            quality: 25,
-            format: CompressFormat.jpeg,
-          );
-
-      if (compressedFile != null) {
-        photos.add(
-          Photo(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
-            url: compressedFile.path,
-            timestamp: DateTime.now().toIso8601String(),
-            docName: docName,
-            description: description,
-          ),
-        );
-      }
-    }
-
-    isProcessingImage = false;
-    notifyListeners();
   }
 
   void updatePhotoDetails(
@@ -992,12 +1189,22 @@ class PreGateInProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ADDED: New method to remove all photos in a group.
+  void removePhotoGroup(String docName) {
+    photos.removeWhere((photo) => photo.docName == docName);
+    notifyListeners();
+  }
+
   Future<void> replacePhoto(Photo photoToReplace, ImageSource source) async {
     isProcessingImage = true;
     notifyListeners();
 
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: source);
+    final pickedFile = await picker.pickImage(
+      source: source,
+      preferredCameraDevice: CameraDevice.rear,
+      requestFullMetadata: false,
+    );
 
     if (pickedFile == null) {
       isProcessingImage = false;
@@ -1049,14 +1256,17 @@ class PreGateInProvider extends ChangeNotifier {
 
     if (_userId == null || _buId == null) return uploadedAttachments;
 
+    final RootIsolateToken token = RootIsolateToken.instance!;
+
     for (var photo in photos) {
+      File fileToUpload;
       final bool isExistingPhoto =
           photo.url.contains(RegExp(r'^[a-zA-Z]:\\')) ||
           photo.url.startsWith('http');
 
       if (isExistingPhoto) {
-        debugPrint("✅ Detected an existing photo. Original path: ${photo.url}");
-
+        debugPrint("✅ Skipping timestamp for existing photo: ${photo.url}");
+        // For existing photos, we just prepare the payload without processing
         String serverPath;
         if (photo.url.startsWith('http')) {
           final uri = Uri.parse(photo.url);
@@ -1064,11 +1274,7 @@ class PreGateInProvider extends ChangeNotifier {
         } else {
           serverPath = photo.url;
         }
-
         final fileName = serverPath.split(RegExp(r'[/\\]')).last;
-
-        debugPrint("✅ Extracted FileName: $fileName");
-
         uploadedAttachments.add({
           'DocName': photo.docName,
           'FilePath': fileName,
@@ -1080,15 +1286,29 @@ class PreGateInProvider extends ChangeNotifier {
               "/Uploads/TempDocument/Location $_buId/PreGateINSurvey/${containerNoController.text.trim()}/$fileName",
           'ContentType': 'image/jpeg',
         });
-        continue;
+        continue; // Move to the next photo
+      } else {
+        // This is a new photo, process it to add a timestamp
+        debugPrint("⏳ Processing new photo for submission: ${photo.url}");
+        final processedFile = await compute(_processImageForSubmission, {
+          'filePath': photo.url,
+          'token': token,
+        });
+
+        if (processedFile == null) {
+          debugPrint("   -> ❌ Failed to process image: ${photo.url}");
+          continue; // Skip this photo if processing fails
+        }
+        fileToUpload = processedFile;
+        debugPrint(
+          "   -> ✅ Image processed and timestamped: ${fileToUpload.path}",
+        );
       }
-      debugPrint("Uploading a new photo from local path: ${photo.url}");
-      final file = File(photo.url);
 
       try {
         final response = await _apiService.uploadFile(
           'https://esquarevnextmobilesurvey.ddplesquare.com/api/UploadAttachment',
-          file,
+          fileToUpload,
           fields: {
             'UserID': _userId.toString(),
             'BUID': _buId.toString(),
@@ -1110,7 +1330,7 @@ class PreGateInProvider extends ChangeNotifier {
           );
         }
       } catch (e) {
-        debugPrint('Attachment upload failed: $e');
+        debugPrint('Attachment upload failed for ${photo.url}: $e');
       }
     }
 

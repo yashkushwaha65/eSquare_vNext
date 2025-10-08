@@ -85,7 +85,7 @@ class SurveyTab extends StatelessWidget {
     }
   }
 
-// Helper to update the provider's state when a field changes
+  // Helper to update the provider's state when a field changes
   void _onValueChanged(PreGateInProvider provider, String key, dynamic value) {
     switch (key) {
       case 'examination':
@@ -95,7 +95,7 @@ class SurveyTab extends StatelessWidget {
         provider.selectedSurveyTypeId = value as String?;
         break;
       case 'containerInStatus':
-      // This now handles the change *after* a selection is made
+        // This now handles the change *after* a selection is made
         provider.updateContainerStatus(value as String?);
         break;
       case 'condition':
@@ -144,10 +144,10 @@ class SurveyTab extends StatelessWidget {
         options: provider.containerStatus
             .map<Map<String, String>>(
               (c) => {
-            'value': c['ID'].toString(),
-            'display': c['Status'].toString(),
-          },
-        )
+                'value': c['ID'].toString(),
+                'display': c['Status'].toString(),
+              },
+            )
             .toList(),
         // --- THIS IS THE FIX ---
         // The onTap callback fires the moment the user touches the dropdown.
@@ -165,13 +165,13 @@ class SurveyTab extends StatelessWidget {
         options: (provider.conditions)
             .where(
               (c) => c != null && c['ID'] != null && c['Condition'] != null,
-        )
+            )
             .map<Map<String, String>>(
               (c) => {
-            'value': c['ID'].toString(),
-            'display': c['Condition'].toString(),
-          },
-        )
+                'value': c['ID'].toString(),
+                'display': c['Condition'].toString(),
+              },
+            )
             .toList(),
       ),
       TextInputConfig(
@@ -181,6 +181,7 @@ class SurveyTab extends StatelessWidget {
         isRequired: true,
         maxLength: 1,
         uppercase: true,
+        textCapitalization: TextCapitalization.characters,
         inputFormatters: [
           FilteringTextInputFormatter.allow(RegExp(r'[A-D]')),
           UpperCaseTextFormatter(),

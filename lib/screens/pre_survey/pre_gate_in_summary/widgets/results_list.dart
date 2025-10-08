@@ -9,6 +9,7 @@ import 'package:esquare/core/theme/app_theme.dart';
 import 'package:esquare/providers/pre_gate_in_summarayPdr.dart';
 import 'package:esquare/screens/pre_survey/pre_gate_in_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:lottie/lottie.dart';
 
 import 'detail_bottom_sheet.dart';
@@ -33,54 +34,42 @@ class ResultsList extends StatelessWidget {
       containerId: item.containerNo,
       container: ContainerModel(
         id: '',
-        // Not available in summary
         containerNo: item.containerNo,
         mfgMonth: item.mfgMonth,
         mfgYear: item.mfgYear.toString(),
         grossWeight: item.grossWt,
         tareWeight: item.tareWt,
         payload: item.payLoad,
-        // Populated from summary
         shippingLine: item.lineName,
         isoCode: item.isoCode,
         sizeType: '${item.size} ${item.containerType}',
         status: item.containerStatus,
+        fromLocation: item.location,
       ),
       transporter: Transporter(
         vehicleNo: item.vehicleNo,
-        // --- FIX: transporterName is not available in the summary, so pass an empty string. ---
-        transporterName: '',
-        // This was incorrectly passing item.lineName
-        driverLicense: '',
-        // Not available in summary
-        driverName: '', // Not available in summary
+        transporterName: item.transporter,
+        driverLicense: item.driverLicenceNo,
+        driverName: item.driverName,
       ),
       details: Details(
         category: item.category,
-        examination: '',
-        // Not available in summary
+        examination: item.examinType,
         surveyType: item.surveyType,
         containerInStatus: item.containerStatus,
-        // --- FIX: grade is not available in the summary. Pass an empty string. ---
-        grade: '',
-        // This was incorrectly passing item.condition
-        cscAsp: '',
-        // Not available in summary
-        doNo: '',
-        // Not available in summary
-        doDate: '',
-        // Not available in summary
-        description: '',
-        condition: item.condition, // Not available in summary
+        grade: item.grade,
+        cscAsp: item.cscAsp,
+        doNo: item.doNo,
+        doDate: item.doValidityDate,
+        description: item.remarks,
+        condition: item.condition,
       ),
       photos: item.attachments
           .map(
             (e) => Photo(
               id: '',
-              // ID is not critical for display
               url: e.filePath1,
               timestamp: '',
-              // Timestamp can be empty for existing photos
               docName: e.docName,
               description: e.fileDesc,
             ),
@@ -149,8 +138,8 @@ class ResultsList extends StatelessWidget {
                         fit: BoxFit.cover,
                         loadingBuilder: (context, child, loadingProgress) {
                           if (loadingProgress == null) return child;
-                          return const Center(
-                            child: CircularProgressIndicator(),
+                          return Center(
+                            child: SvgPicture.asset('assets/anims/loading.json'),
                           );
                         },
                         errorBuilder: (context, error, stackTrace) {

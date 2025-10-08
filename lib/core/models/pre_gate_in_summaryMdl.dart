@@ -24,6 +24,16 @@ class PreGateInSummary {
   final String surveyNo;
   final String addedBy;
   final List<SurveyAttachment> attachments;
+  final String location;
+  final String examinType;
+  final String cscAsp;
+  final String grade;
+  final String doNo;
+  final String doValidityDate;
+  final String transporter;
+  final String driverName;
+  final String driverLicenceNo;
+  final String remarks;
 
   PreGateInSummary({
     required this.srNo,
@@ -47,31 +57,52 @@ class PreGateInSummary {
     required this.surveyNo,
     required this.addedBy,
     this.attachments = const [],
+    required this.location,
+    required this.examinType,
+    required this.cscAsp,
+    required this.grade,
+    required this.doNo,
+    required this.doValidityDate,
+    required this.transporter,
+    required this.driverName,
+    required this.driverLicenceNo,
+    required this.remarks,
   });
 
   factory PreGateInSummary.fromJson(Map<String, dynamic> json) {
     return PreGateInSummary(
-      srNo: json['SRNo'] as int,
-      surveyID: json['SurveyID'] as int,
-      containerNo: json['ContainerNo'] as String,
-      containerType: json['ContainerType'] as String,
-      vehicleNo: json['VehicleNo'] as String,
-      grossWt: (json['GrossWt'] as num).toDouble(),
-      tareWt: (json['TareWt'] as num).toDouble(),
-      payLoad: (json['PayLoad'] as num).toDouble(),
-      size: json['Size'] as int,
-      lineName: json['LineName'] as String,
-      surveyDate: json['SurveyDate'] as String,
-      isoCode: json['ISOCode'] as String,
-      category: json['Category'] as String,
-      surveyType: json['SurveyType'] as String,
-      containerStatus: json['ContainerStatus'] as String,
-      condition: json['Condition'] as String,
-      mfgYear: json['MFGYear'] as int,
-      mfgMonth: json['MFGMonth'] as String,
-      surveyNo: json['SurveyNo'] as String,
-      addedBy: json['AddedBy'] as String,
-      attachments: [], // Correctly initialized
+      srNo: json['SRNo'] ?? 0,
+      surveyID: json['SurveyID'] ?? 0,
+      containerNo: json['ContainerNo'] ?? '',
+      containerType: json['ContainerType'] ?? '',
+      vehicleNo: json['VehicleNo'] ?? '',
+      grossWt: (json['GrossWt'] as num?)?.toDouble() ?? 0.0,
+      tareWt: (json['TareWt'] as num?)?.toDouble() ?? 0.0,
+      payLoad: (json['PayLoad'] as num?)?.toDouble() ?? 0.0,
+      size: json['Size'] ?? 0,
+      lineName: json['LineName'] ?? '',
+      surveyDate: json['SurveyDate'] ?? '',
+      isoCode: json['ISOCode'] ?? '',
+      category: json['Category'] ?? '',
+      surveyType: json['SurveyType'] ?? '',
+      containerStatus: json['ContainerStatus'] ?? '',
+      condition: json['Condition'] ?? '',
+      mfgYear: json['MFGYear'] ?? 0,
+      mfgMonth: json['MFGMonth'] ?? '',
+      surveyNo: json['SurveyNo'] ?? '',
+      addedBy: json['AddedBy'] ?? '',
+      attachments: [],
+      // Correctly initialized
+      location: json['Location'] ?? '',
+      examinType: json['ExaminType'] ?? '',
+      cscAsp: json['CSCASP'] ?? '',
+      grade: json['Grade'] ?? '',
+      doNo: json['DONo'] ?? '',
+      doValidityDate: json['DOValidityDate'] ?? '',
+      transporter: json['Transporter'] ?? '',
+      driverName: json['DriverName'] ?? '',
+      driverLicenceNo: json['DriverLicenceNo'] ?? '',
+      remarks: json['Remarks'] ?? '',
     );
   }
 
@@ -97,6 +128,16 @@ class PreGateInSummary {
     String? surveyNo,
     String? addedBy,
     List<SurveyAttachment>? attachments,
+    String? location,
+    String? examinType,
+    String? cscAsp,
+    String? grade,
+    String? doNo,
+    String? doValidityDate,
+    String? transporter,
+    String? driverName,
+    String? driverLicenceNo,
+    String? remarks,
   }) {
     return PreGateInSummary(
       srNo: srNo ?? this.srNo,
@@ -120,6 +161,16 @@ class PreGateInSummary {
       surveyNo: surveyNo ?? this.surveyNo,
       addedBy: addedBy ?? this.addedBy,
       attachments: attachments ?? this.attachments,
+      location: location ?? this.location,
+      examinType: examinType ?? this.examinType,
+      cscAsp: cscAsp ?? this.cscAsp,
+      grade: grade ?? this.grade,
+      doNo: doNo ?? this.doNo,
+      doValidityDate: doValidityDate ?? this.doValidityDate,
+      transporter: transporter ?? this.transporter,
+      driverName: driverName ?? this.driverName,
+      driverLicenceNo: driverLicenceNo ?? this.driverLicenceNo,
+      remarks: remarks ?? this.remarks,
     );
   }
 }

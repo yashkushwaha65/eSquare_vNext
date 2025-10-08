@@ -194,13 +194,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                         }
                                       },
                                 child: authProvider.isLoading
-                                    ? const SizedBox(
+                                    ? SizedBox(
                                         width: 22,
                                         height: 22,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
+                                        child: SvgPicture.asset('assets/anims/loading.json'),
                                       )
                                     : const Text("Login"),
                               ),
@@ -308,16 +305,16 @@ class _FooterCard extends StatelessWidget {
               style: TextStyle(color: Colors.white30, fontSize: 20),
             ),
             SvgPicture.asset('assets/icons/Wheeler.svg', height: 20),
+            // const Text(
+            //   '|',
+            //   style: TextStyle(color: Colors.white30, fontSize: 20),
+            // ),
+            // SvgPicture.asset('assets/icons/squareVerticalW.svg', height: 20),
             const Text(
               '|',
               style: TextStyle(color: Colors.white30, fontSize: 20),
             ),
-            SvgPicture.asset('assets/icons/squareVerticalW.svg', height: 20),
-            const Text(
-              '|',
-              style: TextStyle(color: Colors.white30, fontSize: 20),
-            ),
-            SvgPicture.asset('assets/icons/fmlm.svg', height: 20),
+            SvgPicture.asset('assets/icons/fmlm.svg', height: 15),
           ],
         ),
       ],

@@ -2,6 +2,7 @@
 import 'package:esquare/providers/pre_gate_inPdr.dart';
 import 'package:esquare/widgets/caution_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
@@ -321,14 +322,9 @@ class _PreGateInScreenState extends State<PreGateInScreen>
                       },
                 icon: provider.isLoading
                     ? SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white.withOpacity(0.8),
-                          ),
-                        ),
+                        width: MediaQuery.sizeOf(context).width,
+                        height: MediaQuery.sizeOf(context).height,
+                        child: SvgPicture.asset('assets/anims/loading.json'),
                       )
                     : const Icon(Icons.check_circle_outline, size: 20),
                 label: Text(

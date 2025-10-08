@@ -11,6 +11,7 @@ class ContainerModel {
   final String isoCode;
   final String sizeType;
   final String status;
+  final String fromLocation;
 
   ContainerModel({
     required this.id,
@@ -24,5 +25,6 @@ class ContainerModel {
     required this.isoCode,
     required this.sizeType,
     required this.status,
+    required this.fromLocation,
   });
 }

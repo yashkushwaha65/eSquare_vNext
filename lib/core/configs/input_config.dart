@@ -37,6 +37,7 @@ class TextInputConfig extends InputConfig {
   final bool uppercase;
   final int? maxLength;
   final List<TextInputFormatter>? inputFormatters;
+  final TextCapitalization textCapitalization;
 
   TextInputConfig({
     required super.key,
@@ -47,23 +48,25 @@ class TextInputConfig extends InputConfig {
     this.uppercase = false,
     this.maxLength,
     this.inputFormatters,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   @override
   Widget buildWidget(
-      BuildContext context,
-      dynamic value,
-      ValueChanged<dynamic>? onChanged,
-      String? error,
-      TextEditingController? controller, {
-        bool readOnly = false,
-        ValueChanged<String>? onCompleted,
-        ValueChanged<String>? onSubmitted,
-        FocusNode? focusNode,
-      }) {
+    BuildContext context,
+    dynamic value,
+    ValueChanged<dynamic>? onChanged,
+    String? error,
+    TextEditingController? controller, {
+    bool readOnly = false,
+    ValueChanged<String>? onCompleted,
+    ValueChanged<String>? onSubmitted,
+    FocusNode? focusNode,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
-      child: TextFormField( // Changed from TextField to TextFormField
+      child: TextFormField(
+        // Changed from TextField to TextFormField
         controller: controller,
         focusNode: focusNode,
         maxLength: maxLength,
@@ -71,17 +74,17 @@ class TextInputConfig extends InputConfig {
         decoration: InputDecoration(
           label: isRequired
               ? RichText(
-            text: TextSpan(
-              text: label,
-              style: DefaultTextStyle.of(context).style,
-              children: const [
-                TextSpan(
-                  text: ' *',
-                  style: TextStyle(color: Colors.red),
-                ),
-              ],
-            ),
-          )
+                  text: TextSpan(
+                    text: label,
+                    style: DefaultTextStyle.of(context).style,
+                    children: const [
+                      TextSpan(
+                        text: ' *',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ],
+                  ),
+                )
               : Text(label),
           hintText: hint,
           errorText: error,
@@ -90,6 +93,7 @@ class TextInputConfig extends InputConfig {
         keyboardType: keyboardType,
         textInputAction: TextInputAction.done,
         readOnly: readOnly,
+        textCapitalization: textCapitalization,
         onChanged: (newValue) {
           String finalValue = uppercase ? newValue.toUpperCase() : newValue;
           controller?.value = controller.value.copyWith(
@@ -102,13 +106,14 @@ class TextInputConfig extends InputConfig {
           if (uppercase) value = value.toUpperCase();
           onSubmitted?.call(value);
         },
-        validator: isRequired // Added validator for required fields
+        validator:
+            isRequired // Added validator for required fields
             ? (value) {
-          if (value == null || value.isEmpty) {
-            return '$label is required';
-          }
-          return null;
-        }
+                if (value == null || value.isEmpty) {
+                  return '$label is required';
+                }
+                return null;
+              }
             : null,
       ),
     );
@@ -190,17 +195,17 @@ class SelectInputConfig extends InputConfig {
           decoration: InputDecoration(
             label: isRequired
                 ? RichText(
-              text: TextSpan(
-                text: label,
-                style: DefaultTextStyle.of(context).style,
-                children: const [
-                  TextSpan(
-                    text: ' *',
-                    style: TextStyle(color: Colors.red),
-                  ),
-                ],
-              ),
-            )
+                    text: TextSpan(
+                      text: label,
+                      style: DefaultTextStyle.of(context).style,
+                      children: const [
+                        TextSpan(
+                          text: ' *',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ],
+                    ),
+                  )
                 : Text(label),
             errorText: error,
             border: const OutlineInputBorder(),
@@ -209,15 +214,15 @@ class SelectInputConfig extends InputConfig {
           onChanged: readOnly
               ? null
               : (newValue) {
-            onChanged?.call(newValue);
-          },
+                  onChanged?.call(newValue);
+                },
           validator: isRequired
               ? (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please select a $label';
-            }
-            return null;
-          }
+                  if (value == null || value.isEmpty) {
+                    return 'Please select a $label';
+                  }
+                  return null;
+                }
               : null,
         ),
       ),
@@ -394,7 +399,7 @@ class TextAreaConfig extends InputConfig {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: TextFormField(
-        controller: TextEditingController(text: value ?? ''),
+        controller: controller,
         decoration: InputDecoration(
           label: isRequired
               ? RichText(

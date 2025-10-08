@@ -65,7 +65,7 @@ class _TransporterTabState extends State<TransporterTab> {
         context: context,
         title: 'Invalid Vehicle Number',
         message:
-        'Format must be like GJ15AG1234 (2 letters, 2 numbers, 2 letters, 4 numbers).',
+            'Format must be like GJ15AG1234 (2 letters, 2 numbers, 2 letters, 4 numbers).',
       );
       // ADDED: Check if the widget is still mounted after the dialog.
       if (!mounted) return;
@@ -127,10 +127,8 @@ class _TransporterTabState extends State<TransporterTab> {
             style: TextStyle(color: Colors.grey),
           ),
           const SizedBox(height: 16),
-          SelectInputConfig(
-            key: 'transporterName',
+          SearchableDropdown(
             label: 'Transporter Name',
-            isRequired: true,
             options: provider.transporters
                 .where(
                   (t) =>
@@ -144,6 +142,9 @@ class _TransporterTabState extends State<TransporterTab> {
                   },
                 )
                 .toList(),
+            selectedValue: provider.selectedTransId,
+            onChanged: (value) => provider.selectedTransId = value,
+            error: provider.errors['transporterName'],
             onValidationFailed: (invalidValue) async {
               if (mounted && !_isShowingValidationDialog) {
                 _isShowingValidationDialog = true;
@@ -158,12 +159,6 @@ class _TransporterTabState extends State<TransporterTab> {
                 _isShowingValidationDialog = false;
               }
             },
-          ).buildWidget(
-            context,
-            provider.selectedTransId,
-            (value) => provider.selectedTransId = value,
-            provider.errors['transporterName'],
-            null,
           ),
           const SizedBox(height: 16),
           TextInputConfig(
