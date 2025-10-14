@@ -9,7 +9,6 @@ import 'package:esquare/core/theme/app_theme.dart';
 import 'package:esquare/providers/pre_gate_in_summarayPdr.dart';
 import 'package:esquare/screens/pre_survey/pre_gate_in_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/svg.dart';
 import 'package:lottie/lottie.dart';
 
 import 'detail_bottom_sheet.dart';
@@ -139,7 +138,7 @@ class ResultsList extends StatelessWidget {
                         loadingBuilder: (context, child, loadingProgress) {
                           if (loadingProgress == null) return child;
                           return Center(
-                            child: SvgPicture.asset('assets/anims/loading.json'),
+                            child: Lottie.asset('assets/anims/loading.json'),
                           );
                         },
                         errorBuilder: (context, error, stackTrace) {
@@ -239,10 +238,11 @@ class ResultsList extends StatelessWidget {
                         children: [
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Flexible(
                                 child: Text(
-                                  'Survey No: ${item.surveyNo}',
+                                  'Sur No: ${item.surveyNo}',
                                   style: AppTheme
                                       .lightTheme
                                       .textTheme
@@ -251,49 +251,48 @@ class ResultsList extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              // Text(
-                              //   item.surveyDate,
-                              //   style: AppTheme.lightTheme.textTheme.bodySmall
-                              //       ?.copyWith(color: Colors.grey[600]),
-                              // ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (item.attachments.isNotEmpty)
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.photo_library,
+                                        color: AppTheme.primaryColor,
+                                      ),
+                                      onPressed: () =>
+                                          _showSurveyPhotos(context, item),
+                                      tooltip: 'View Photos',
+                                      padding: const EdgeInsets.all(4),
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                  const SizedBox(width: 4),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.edit,
+                                      color: AppTheme.secondaryColor,
+                                    ),
+                                    onPressed: () =>
+                                        _navigateToEditPage(context, item),
+                                    tooltip: 'Edit',
+                                    padding: const EdgeInsets.all(4),
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ],
+                              ),
                             ],
                           ),
                           const Divider(height: 24),
-                          _buildInfoRow('Survey Date', item.surveyDate),
+                          _buildInfoRow('Survey Date:', item.surveyDate),
                           const SizedBox(height: 8),
                           _buildInfoRow('Container:', item.containerNo),
                           const SizedBox(height: 8),
                           _buildInfoRow(
                             'Size/Type:',
-                            '${item.size} ${item.containerType}',
+                            '${item.size} / ${item.containerType}',
                           ),
                           const SizedBox(height: 8),
                           _buildInfoRow('Shipping Line:', item.lineName),
-                          const SizedBox(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              if (item.attachments.isNotEmpty)
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.photo_library,
-                                    color: AppTheme.primaryColor,
-                                  ),
-                                  onPressed: () =>
-                                      _showSurveyPhotos(context, item),
-                                  tooltip: 'View Photos',
-                                ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.edit,
-                                  color: AppTheme.secondaryColor,
-                                ),
-                                onPressed: () =>
-                                    _navigateToEditPage(context, item),
-                                tooltip: 'Edit',
-                              ),
-                            ],
-                          ),
                         ],
                       ),
                     ),

@@ -3,8 +3,8 @@ import 'package:esquare/providers/pre_gate_inPdr.dart';
 import 'package:esquare/screens/pre_survey/tabs/widgets/container_number_field.dart';
 import 'package:esquare/widgets/caution_dialog.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
 class ContainerTab extends StatefulWidget {
@@ -14,7 +14,8 @@ class ContainerTab extends StatefulWidget {
   State<ContainerTab> createState() => _ContainerTabState();
 }
 
-class _ContainerTabState extends State<ContainerTab> {
+class _ContainerTabState extends State<ContainerTab>
+    with AutomaticKeepAliveClientMixin {
   late final PreGateInProvider _provider;
   final _isoCodeController = TextEditingController();
   final _containerNoFocus = FocusNode();
@@ -25,6 +26,9 @@ class _ContainerTabState extends State<ContainerTab> {
   final _locationFocus = FocusNode();
   final _mfgYearFocus = FocusNode();
   bool _isShowingValidationDialog = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -210,6 +214,7 @@ class _ContainerTabState extends State<ContainerTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final provider = Provider.of<PreGateInProvider>(context);
 
     return GestureDetector(
@@ -298,7 +303,11 @@ class _ContainerTabState extends State<ContainerTab> {
               Padding(
                 padding: EdgeInsets.symmetric(vertical: 40.0),
                 child: Center(
-                  child: SvgPicture.asset('assets/anims/loading.json'),
+                  child: SizedBox(
+                    width: MediaQuery.sizeOf(context).width * .2,
+                    height: MediaQuery.sizeOf(context).height * .2,
+                    child: Lottie.asset('assets/anims/loading.json'),
+                  ),
                 ),
               )
             else
@@ -373,7 +382,7 @@ class _ContainerTabState extends State<ContainerTab> {
                                   vertical: 8.0,
                                 ),
                                 child: Center(
-                                  child: SvgPicture.asset(
+                                  child: Lottie.asset(
                                     'assets/anims/loading.json',
                                   ),
                                 ),

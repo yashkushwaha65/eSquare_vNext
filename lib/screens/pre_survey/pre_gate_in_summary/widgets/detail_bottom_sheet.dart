@@ -8,7 +8,7 @@ import 'package:esquare/core/models/transporterMdl.dart';
 import 'package:esquare/core/theme/app_theme.dart';
 import 'package:esquare/screens/pre_survey/pre_gate_in_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/svg.dart';
+import 'package:lottie/lottie.dart';
 
 class DetailBottomSheet extends StatelessWidget {
   final PreGateInSummary item;
@@ -197,14 +197,15 @@ class DetailBottomSheet extends StatelessWidget {
                 ]),
                 const SizedBox(height: 20),
                 _buildDetailSection('Transport Details', [
-                  _buildDetailRow('Vehicle Number', item.vehicleNo),
+
                   _buildDetailRow('Transporter', item.transporter),
+                  _buildDetailRow('Vehicle Number', item.vehicleNo),
                   _buildDetailRow('Driver Name', item.driverName),
                   _buildDetailRow('Driver Licence No', item.driverLicenceNo),
                 ]),
                 const SizedBox(height: 20),
                 _buildDetailSection('Survey Details', [
-                  _buildDetailRow('Survey No', item.surveyNo),
+                  // _buildDetailRow('Survey No', item.surveyNo),
                   _buildDetailRow('Survey Date', item.surveyDate),
                   _buildDetailRow('Survey Type', item.surveyType),
                   _buildDetailRow('Container Status', item.containerStatus),
@@ -245,7 +246,7 @@ class DetailBottomSheet extends StatelessWidget {
                                           return child;
                                         }
                                         return Center(
-                                          child: SvgPicture.asset(
+                                          child: Lottie.asset(
                                             'assets/anims/loading.json',
                                           ),
                                         );

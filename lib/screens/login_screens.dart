@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -197,7 +198,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ? SizedBox(
                                         width: 22,
                                         height: 22,
-                                        child: SvgPicture.asset('assets/anims/loading.json'),
+                                        child: Lottie.asset(
+                                          'assets/anims/loading.json',
+                                        ),
                                       )
                                     : const Text("Login"),
                               ),

@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/svg.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -19,26 +18,88 @@ class _CustomCameraScreenState extends State<CustomCameraScreen> {
   late CameraController _controller;
   late Future<void> _initializeControllerFuture;
   final List<XFile> _capturedPhotos = [];
+  FlashMode _currentFlashMode = FlashMode.off;
+  int _selectedCameraIndex = 0;
+  bool _canSwitchCameras = false;
 
   @override
   void initState() {
     super.initState();
-    final rearCam = widget.cameras.firstWhere(
+    _canSwitchCameras = widget.cameras.length > 1;
+    _selectedCameraIndex = widget.cameras.indexWhere(
       (c) => c.lensDirection == CameraLensDirection.back,
-      orElse: () => widget.cameras.first,
     );
+    if (_selectedCameraIndex == -1) {
+      _selectedCameraIndex = 0;
+    }
+    _initializeCamera(_selectedCameraIndex);
+  }
+
+  void _initializeCamera(int cameraIndex) {
     _controller = CameraController(
-      rearCam,
-      ResolutionPreset.medium,
+      widget.cameras[cameraIndex],
+      ResolutionPreset.high,
       enableAudio: false,
     );
-    _initializeControllerFuture = _controller.initialize();
+    _initializeControllerFuture = _controller.initialize().then((_) {
+      if (mounted) {
+        _controller.setFlashMode(_currentFlashMode);
+        setState(() {});
+      }
+    });
   }
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _toggleFlash() async {
+    if (_controller.value.isInitialized) {
+      setState(() {
+        switch (_currentFlashMode) {
+          case FlashMode.off:
+            _currentFlashMode = FlashMode.auto;
+            break;
+          case FlashMode.auto:
+            _currentFlashMode = FlashMode.torch;
+            break;
+          case FlashMode.torch:
+            _currentFlashMode = FlashMode.off;
+            break;
+          default:
+            _currentFlashMode = FlashMode.off;
+        }
+      });
+      await _controller.setFlashMode(_currentFlashMode);
+    }
+  }
+
+  IconData _getFlashIcon() {
+    switch (_currentFlashMode) {
+      case FlashMode.off:
+        return Icons.flash_off;
+      case FlashMode.auto:
+        return Icons.flash_auto;
+      case FlashMode.torch:
+        return Icons.flash_on;
+      default:
+        return Icons.flash_off;
+    }
+  }
+
+  Future<void> _switchCamera() async {
+    if (!_canSwitchCameras) return;
+
+    // Simple toggle: if current is 0, switch to 1, and vice-versa.
+    _selectedCameraIndex = (_selectedCameraIndex + 1) % widget.cameras.length;
+
+    await _controller.dispose();
+    setState(() {
+      _currentFlashMode = FlashMode.off; // Reset flash on camera switch
+      _initializeCamera(_selectedCameraIndex);
+    });
   }
 
   Future<void> _takePhoto() async {
@@ -77,6 +138,39 @@ class _CustomCameraScreenState extends State<CustomCameraScreen> {
             return Stack(
               children: [
                 CameraPreview(_controller),
+                // Camera Switch button top left
+                if (_canSwitchCameras)
+                  Positioned(
+                    top: 40,
+                    left: 16,
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.flip_camera_ios_outlined,
+                        color: Colors.white,
+                        size: 30,
+                      ),
+                      onPressed: _switchCamera,
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black.withOpacity(0.5),
+                        shape: const CircleBorder(),
+                        padding: const EdgeInsets.all(12),
+                      ),
+                    ),
+                  ),
+                // Flash button top right
+                Positioned(
+                  top: 40,
+                  right: 16,
+                  child: IconButton(
+                    icon: Icon(_getFlashIcon(), color: Colors.white, size: 30),
+                    onPressed: _toggleFlash,
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black.withOpacity(0.5),
+                      shape: const CircleBorder(),
+                      padding: const EdgeInsets.all(12),
+                    ),
+                  ),
+                ),
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: Container(
@@ -174,7 +268,7 @@ class _CustomCameraScreenState extends State<CustomCameraScreen> {
               ],
             );
           } else {
-            return Center(child: SvgPicture.asset('assets/anims/loading.json'));
+            return Center(child: CircularProgressIndicator());
           }
         },
       ),

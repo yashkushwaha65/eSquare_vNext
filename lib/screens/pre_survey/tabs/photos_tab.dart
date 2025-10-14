@@ -19,12 +19,16 @@ class PhotosTab extends StatefulWidget {
   State<PhotosTab> createState() => _PhotosTabState();
 }
 
-class _PhotosTabState extends State<PhotosTab> {
+class _PhotosTabState extends State<PhotosTab>
+    with AutomaticKeepAliveClientMixin {
   String? _selectedPosition;
   final _descriptionController = TextEditingController();
   List<XFile> _stagedPhotos = [];
 
   final supportedExtensions = ['jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG'];
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void dispose() {
@@ -145,7 +149,7 @@ class _PhotosTabState extends State<PhotosTab> {
     }
   }
 
-  void _addStagedPhotos() {
+  void _addStagedPhotos() async {
     final provider = Provider.of<PreGateInProvider>(context, listen: false);
 
     if (_selectedPosition == null) {
@@ -175,17 +179,15 @@ class _PhotosTabState extends State<PhotosTab> {
       return;
     }
 
-    for (var file in _stagedPhotos) {
-      provider.photos.add(
-        Photo(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          url: file.path,
-          timestamp: DateTime.now().toIso8601String(),
-          docName: _selectedPosition!,
-          description: _descriptionController.text.trim(),
-        ),
-      );
-    }
+    // --- FIX: Call the new provider method to handle processing ---
+    await provider.processAndAddStagedPhotos(
+      _stagedPhotos,
+      _selectedPosition!,
+      _descriptionController.text.trim(),
+    );
+
+    if (!mounted) return;
+
     setState(() {
       _stagedPhotos.clear();
       _selectedPosition = null;
@@ -195,6 +197,7 @@ class _PhotosTabState extends State<PhotosTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Consumer<PreGateInProvider>(
       builder: (context, provider, child) {
         final groupedPhotos = <String, List<Photo>>{};

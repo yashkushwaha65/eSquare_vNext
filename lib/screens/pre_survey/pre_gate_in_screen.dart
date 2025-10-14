@@ -2,7 +2,6 @@
 import 'package:esquare/providers/pre_gate_inPdr.dart';
 import 'package:esquare/widgets/caution_dialog.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/svg.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
@@ -211,6 +210,12 @@ class _PreGateInScreenState extends State<PreGateInScreen>
                 onPressed: provider.isLoading
                     ? null
                     : () async {
+                        // SOLUTION: Switch to Survey Tab (index 2) before validating.
+                        _tabController.animateTo(2);
+
+                        // Give a brief moment for the tab to build.
+                        await Future.delayed(const Duration(milliseconds: 100));
+
                         provider.hasValidatedShippingLine = true;
                         if (provider.validateForm()) {
                           final errorMessage = await provider.saveSurvey(
@@ -271,11 +276,14 @@ class _PreGateInScreenState extends State<PreGateInScreen>
                                       size: 20,
                                     ),
                                     const SizedBox(width: 12),
-                                    Text(
-                                      errorMessage, // Show the actual error message
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w500,
+                                    Flexible(
+                                      // FIX 1: Wrap the text in Flexible
+                                      child: Text(
+                                        errorMessage, // Show the actual error message
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -321,18 +329,25 @@ class _PreGateInScreenState extends State<PreGateInScreen>
                         }
                       },
                 icon: provider.isLoading
-                    ? SizedBox(
-                        width: MediaQuery.sizeOf(context).width,
-                        height: MediaQuery.sizeOf(context).height,
-                        child: SvgPicture.asset('assets/anims/loading.json'),
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF1565C0),
+                        ),
                       )
                     : const Icon(Icons.check_circle_outline, size: 20),
-                label: Text(
-                  provider.isLoading ? 'Submitting...' : 'Submit',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.3,
+                label: Flexible(
+                  // FIX 1: Also wrap the button label
+                  child: Text(
+                    provider.isLoading ? 'Submitting...' : 'Submit',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.3,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
@@ -421,6 +436,7 @@ class _PreGateInScreenState extends State<PreGateInScreen>
             ),
             labelPadding: const EdgeInsets.symmetric(horizontal: 4),
             isScrollable: false,
+            // FIX 2: Reverted to false to restore original UI
             tabs: const [
               Tab(
                 height: 50,

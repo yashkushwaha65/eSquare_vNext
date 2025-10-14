@@ -6,11 +6,21 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-class SurveyTab extends StatelessWidget {
+class SurveyTab extends StatefulWidget {
   const SurveyTab({super.key});
 
   @override
+  State<SurveyTab> createState() => _SurveyTabState();
+}
+
+class _SurveyTabState extends State<SurveyTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
     final provider = Provider.of<PreGateInProvider>(context);
 
     return SingleChildScrollView(

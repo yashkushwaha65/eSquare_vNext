@@ -12,12 +12,16 @@ class TransporterTab extends StatefulWidget {
   State<TransporterTab> createState() => _TransporterTabState();
 }
 
-class _TransporterTabState extends State<TransporterTab> {
+class _TransporterTabState extends State<TransporterTab>
+    with AutomaticKeepAliveClientMixin {
   final FocusNode _vehicleNoFocusNode = FocusNode();
   final FocusNode _driverLicenseFocusNode = FocusNode();
   bool _isShowingValidationDialog = false;
 
   late PreGateInProvider _provider;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -110,6 +114,7 @@ class _TransporterTabState extends State<TransporterTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final provider = Provider.of<PreGateInProvider>(context);
 
     return SingleChildScrollView(

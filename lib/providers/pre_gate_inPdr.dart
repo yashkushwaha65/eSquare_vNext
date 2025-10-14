@@ -1,4 +1,5 @@
 // lib/providers/pre_gate_inPdr.dart
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:camera/camera.dart';
@@ -46,7 +47,7 @@ Future<File?> _processImageInBackground(Map<String, dynamic> args) async {
   // --- NEW LOGIC FOR LARGER, SCALED TIMESTAMP ---
 
   final timestamp = DateFormat('dd-MM-yyyy HH:mm').format(DateTime.now());
-  final font = img.arial48; // Use the largest base font for best quality
+  final font = img.arial24; // Use the largest base font for best quality
 
   // 1. Create a temporary, transparent image to draw the text on.
   final textImage = img.Image(
@@ -62,8 +63,8 @@ Future<File?> _processImageInBackground(Map<String, dynamic> args) async {
     color: img.ColorRgb8(255, 255, 255),
   );
 
-  // 3. Calculate a dynamic scale factor. Target width is 40% of the main image.
-  double targetWidth = image.width * 0.40;
+  // 3. Calculate a dynamic scale factor. Target width is 20% of the main image.
+  double targetWidth = image.width * 0.20;
   double scale = targetWidth / textImage.width;
   if (scale < 1.0) scale = 1.0; // Don't make it smaller than the original
 
@@ -101,65 +102,6 @@ Future<File?> _processImageInBackground(Map<String, dynamic> args) async {
   );
   await timestampedFile.writeAsBytes(img.encodeJpg(image));
   return timestampedFile;
-}
-
-Future<File?> _processImageForSubmission(Map<String, dynamic> args) async {
-  final String filePath = args['filePath'];
-  final RootIsolateToken token = args['token'];
-
-  BackgroundIsolateBinaryMessenger.ensureInitialized(token);
-
-  final tempDir = await path_provider.getTemporaryDirectory();
-  final originalFile = File(filePath);
-  final image = img.decodeImage(await originalFile.readAsBytes());
-  if (image == null) return null;
-
-  final timestamp = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
-  final font = img.arial48;
-
-  final textImage = img.Image(
-    width: textWidth(font, timestamp).toInt(),
-    height: font.lineHeight,
-  );
-  img.drawString(
-    textImage,
-    timestamp,
-    font: font,
-    color: img.ColorRgb8(255, 255, 255),
-  );
-
-  double targetWidth = image.width * 0.40;
-  double scale = targetWidth / textImage.width;
-  if (scale < 1.0) scale = 1.0;
-
-  final scaledTextImage = img.copyResize(
-    textImage,
-    width: (textImage.width * scale).round(),
-    height: (textImage.height * scale).round(),
-    interpolation: img.Interpolation.linear,
-  );
-
-  const padding = 20;
-  final xPos = image.width - scaledTextImage.width - padding;
-  final yPos = image.height - scaledTextImage.height - padding;
-
-  img.fillRect(
-    image,
-    x1: xPos - 10,
-    y1: yPos - 10,
-    x2: xPos + scaledTextImage.width + 10,
-    y2: yPos + scaledTextImage.height + 10,
-    color: img.ColorRgba8(0, 0, 0, 150),
-    radius: 10,
-  );
-
-  img.compositeImage(image, scaledTextImage, dstX: xPos, dstY: yPos);
-
-  final processedFile = File(
-    p.join(tempDir.path, '${p.basename(filePath)}_processed.jpg'),
-  );
-  await processedFile.writeAsBytes(img.encodeJpg(image, quality: 85));
-  return processedFile;
 }
 
 class PreGateInProvider extends ChangeNotifier {
@@ -219,6 +161,7 @@ class PreGateInProvider extends ChangeNotifier {
 
   int? _buId;
   int? _userId;
+  int? _containerTypeId;
 
   final Map<String, String> errors = {}; // Moved errors to provider
   String? selectedDODate; // if storing formatted string
@@ -279,6 +222,62 @@ class PreGateInProvider extends ChangeNotifier {
     if (limit != null && limit > 0) {
       _maxPhotosTotal = limit;
 
+      notifyListeners();
+    }
+  }
+
+  // ADDED: New method to process and add photos that were staged in the UI.
+  Future<void> processAndAddStagedPhotos(
+    List<XFile> stagedPhotos,
+    String docName,
+    String description,
+  ) async {
+    isProcessingImage = true;
+    notifyListeners();
+
+    try {
+      final tempDir = await path_provider.getTemporaryDirectory();
+      final RootIsolateToken token = RootIsolateToken.instance!;
+
+      for (var file in stagedPhotos) {
+        if (photos.length >= _maxPhotosTotal) break;
+
+        final timestampedFile = await compute(_processImageInBackground, {
+          'filePath': file.path,
+          'token': token,
+        });
+        if (timestampedFile == null) continue;
+
+        final String fileNameWithoutExt = p.basenameWithoutExtension(file.path);
+        final String targetPath = p.join(
+          tempDir.path,
+          "${fileNameWithoutExt}_${DateTime.now().millisecondsSinceEpoch}.jpg",
+        );
+
+        final XFile? compressedFile =
+            await FlutterImageCompress.compressAndGetFile(
+              timestampedFile.path,
+              targetPath,
+              quality: 25,
+              format: CompressFormat.jpeg,
+            );
+
+        if (compressedFile != null) {
+          photos.add(
+            Photo(
+              id: DateTime.now().millisecondsSinceEpoch.toString(),
+              url: compressedFile.path,
+              timestamp: DateTime.now().toIso8601String(),
+              docName: docName,
+              description: description,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Error processing staged images: $e");
+    } finally {
+      isProcessingImage = false;
       notifyListeners();
     }
   }
@@ -454,6 +453,7 @@ class PreGateInProvider extends ChangeNotifier {
     selectedMfgMonth = null;
     size = null;
     containerType = null;
+    _containerTypeId = null; // MODIFIED: Reset the container type ID
     category = '';
     payload = null;
     containerValid = false;
@@ -486,23 +486,82 @@ class PreGateInProvider extends ChangeNotifier {
 
       debugPrint("CheckContainerSurveyDone API Response: $res");
 
-      // FIX: Handle the response which can be a List containing a Map
       if (res is List && res.isNotEmpty) {
         final firstItem = res.first;
         if (firstItem is Map && firstItem.containsKey('Status')) {
-          // API returns boolean true/false
           return firstItem['Status'] == true;
         }
       } else if (res is Map && res.containsKey('Status')) {
-        // Also handle if API returns a single map directly
         return res['Status'] == true;
       }
-
-      // If response is not in the expected format, default to false.
       return false;
     } catch (e) {
       debugPrint("checkSurveyDone error: $e");
       return false;
+    }
+  }
+
+  // --- ADDED: Method to check gate-in status ---
+  Future<bool> checkContainerGateInDone(String containerNo) async {
+    if (_buId == null) {
+      debugPrint("checkContainerGateInDone failed: BUID is null.");
+      return false;
+    }
+    try {
+      final res = await _apiService.postRequest(
+        ApiEndpoints.checkContainerGateInDone,
+        {"ContainerNo": containerNo, "BUID": _buId},
+        authToken: ApiEndpoints.surveyAuthToken,
+      );
+
+      debugPrint("CheckContainerGateInDone API Response: $res");
+
+      if (res is List && res.isNotEmpty) {
+        final firstItem = res.first;
+        if (firstItem is Map && firstItem.containsKey('Status')) {
+          return firstItem['Status'] == true;
+        }
+      } else if (res is Map && res.containsKey('Status')) {
+        return res['Status'] == true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint("checkContainerGateInDone error: $e");
+      return false;
+    }
+  }
+
+  Future<bool> canProceedWithContainer(String containerNo) async {
+    if (_buId == null) {
+      debugPrint("canProceedWithContainer failed: BUID is null.");
+      return true;
+    }
+
+    try {
+      // Run both API calls in parallel
+      final results = await Future.wait([
+        checkSurveyDone(containerNo),
+        checkContainerGateInDone(containerNo),
+      ]);
+
+      final surveyCanProceed = results[0];
+      final gateInCanProceed = results[1];
+
+      // User can only proceed if BOTH are true
+      final bool canProceed = surveyCanProceed && gateInCanProceed;
+
+      if (!canProceed) {
+        debugPrint(
+          "Container '$containerNo' cannot be processed. Survey API returned: $surveyCanProceed, Gate-In API returned: $gateInCanProceed.",
+        );
+      } else {
+        debugPrint("Container '$containerNo' can be processed.");
+      }
+
+      return canProceed;
+    } catch (e) {
+      debugPrint("Error in canProceedWithContainer: $e");
+      return true; // Default to allow proceed on unexpected error
     }
   }
 
@@ -661,6 +720,7 @@ class PreGateInProvider extends ChangeNotifier {
     try {
       size = '';
       containerType = '';
+      _containerTypeId = null; // MODIFIED: Reset container type ID
       category = '';
       sizeTypeController.text = '';
       categoryController.text = '';
@@ -699,6 +759,7 @@ class PreGateInProvider extends ChangeNotifier {
       if (data != null) {
         size = data['Size']?.toString() ?? '';
         containerType = data['ContainerType']?.toString() ?? '';
+        _containerTypeId = data['ContainerTypeID'] as int?;
         category = data['Category']?.toString() ?? '';
         sizeTypeController.text = '$size $containerType'.toUpperCase();
         categoryController.text = category.toUpperCase();
@@ -1253,62 +1314,64 @@ class PreGateInProvider extends ChangeNotifier {
 
   Future<List<Map<String, dynamic>>> uploadAttachments() async {
     List<Map<String, dynamic>> uploadedAttachments = [];
-
     if (_userId == null || _buId == null) return uploadedAttachments;
 
-    final RootIsolateToken token = RootIsolateToken.instance!;
-
     for (var photo in photos) {
-      File fileToUpload;
-      final bool isExistingPhoto =
-          photo.url.contains(RegExp(r'^[a-zA-Z]:\\')) ||
-          photo.url.startsWith('http');
+      final bool isExistingPhoto = photo.url.startsWith('http');
 
       if (isExistingPhoto) {
-        debugPrint("✅ Skipping timestamp for existing photo: ${photo.url}");
-        // For existing photos, we just prepare the payload without processing
-        String serverPath;
-        if (photo.url.startsWith('http')) {
-          final uri = Uri.parse(photo.url);
-          serverPath = uri.queryParameters['FilePath'] ?? photo.url;
-        } else {
-          serverPath = photo.url;
-        }
-        final fileName = serverPath.split(RegExp(r'[/\\]')).last;
-        uploadedAttachments.add({
-          'DocName': photo.docName,
-          'FilePath': fileName,
-          'FilePath1': serverPath,
-          'ContainerNo': containerNoController.text.trim(),
-          'FileName': fileName,
-          'FileDesc': photo.description,
-          'RelativePath':
-              "/Uploads/TempDocument/Location $_buId/PreGateINSurvey/${containerNoController.text.trim()}/$fileName",
-          'ContentType': 'image/jpeg',
-        });
-        continue; // Move to the next photo
-      } else {
-        // This is a new photo, process it to add a timestamp
-        debugPrint("⏳ Processing new photo for submission: ${photo.url}");
-        final processedFile = await compute(_processImageForSubmission, {
-          'filePath': photo.url,
-          'token': token,
-        });
+        debugPrint("✅ Including existing photo metadata: ${photo.url}");
+        final uri = Uri.parse(photo.url);
+        String serverPath = uri.queryParameters['FilePath'] ?? photo.url;
 
-        if (processedFile == null) {
-          debugPrint("   -> ❌ Failed to process image: ${photo.url}");
-          continue; // Skip this photo if processing fails
+        // Handle both forward and backward slashes
+        final fileName = serverPath.split(RegExp(r'[/\\]')).last;
+
+        // DON'T reconstruct the path - use the original structure
+        // The server path might already have the correct relative path embedded
+        String relativePath;
+        if (serverPath.contains('/Uploads/') ||
+            serverPath.contains('\\Uploads\\')) {
+          // Extract the relative path from the server path
+          final uploadIndex = serverPath.indexOf(RegExp(r'[/\\]Uploads[/\\]'));
+          if (uploadIndex != -1) {
+            relativePath = serverPath
+                .substring(uploadIndex)
+                .replaceAll('\\', '/');
+          } else {
+            // Fallback: construct it
+            relativePath =
+                "/Uploads/TempDocument/Location $_buId/PreGateINSurvey/${containerNoController.text.trim()}/$fileName";
+          }
+        } else {
+          // If server path doesn't contain Uploads, construct the relative path
+          relativePath =
+              "/Uploads/TempDocument/Location $_buId/PreGateINSurvey/${containerNoController.text.trim()}/$fileName";
         }
-        fileToUpload = processedFile;
-        debugPrint(
-          "   -> ✅ Image processed and timestamped: ${fileToUpload.path}",
-        );
+
+        uploadedAttachments.add({
+          "DocName": photo.docName,
+          "FilePath": fileName,
+          "FilePath1": serverPath,
+          "ContainerNo": containerNoController.text.trim(),
+          "FileName": fileName,
+          "FileDesc": photo.description,
+          "RelativePath": relativePath,
+          "ContentType": "image/jpeg",
+        });
+        continue;
       }
+
+      // --- FIX: Upload the already-processed file directly ---
+      // The file at `photo.url` has already been timestamped by `pickAndProcessImages`.
+      // There is no need to process it again here.
+      debugPrint("📤 Uploading new photo directly: ${photo.url}");
+      final File fileToUpload = File(photo.url);
 
       try {
         final response = await _apiService.uploadFile(
-          'https://esquarevnextmobilesurvey.ddplesquare.com/api/UploadAttachment',
-          fileToUpload,
+          ApiEndpoints.uploadAttachment,
+          fileToUpload, // Use the file directly
           fields: {
             'UserID': _userId.toString(),
             'BUID': _buId.toString(),
@@ -1320,10 +1383,24 @@ class PreGateInProvider extends ChangeNotifier {
           },
         );
 
+        Map<String, dynamic>? uploadedData;
         if (response is List && response.isNotEmpty) {
-          final uploadedData = Map<String, dynamic>.from(response.first);
-          uploadedData['FileDesc'] = photo.description;
-          uploadedAttachments.add(uploadedData);
+          uploadedData = Map<String, dynamic>.from(response.first);
+        } else if (response is Map) {
+          uploadedData = Map<String, dynamic>.from(response);
+        }
+
+        if (uploadedData != null && uploadedData.containsKey('FileName')) {
+          uploadedAttachments.add({
+            'DocName': uploadedData['DocName'],
+            'FilePath': uploadedData['FilePath'],
+            'FilePath1': uploadedData['FilePath1'],
+            'ContainerNo': uploadedData['ContainerNo'],
+            'FileName': uploadedData['FileName'],
+            'FileDesc': photo.description,
+            'RelativePath': uploadedData['RelativePath'],
+            'ContentType': uploadedData['ContentType'],
+          });
         } else {
           debugPrint(
             'UploadAttachment API returned unexpected format: $response',
@@ -1367,7 +1444,7 @@ class PreGateInProvider extends ChangeNotifier {
         "SurveyID": surveyIdForEdit ?? 0,
         "ContainerNo": containerNoController.text.trim(),
         "ISOCodeID": int.tryParse(selectedIsoId ?? '0') ?? 0,
-        "ContainerTypeID": 1,
+        "ContainerTypeID": _containerTypeId ?? 0,
         "Size": size ?? "",
         "SLID": int.tryParse(selectedSlId ?? '0') ?? 0,
         "GrossWt": grossWtController.text.trim(),
@@ -1404,14 +1481,19 @@ class PreGateInProvider extends ChangeNotifier {
 
       body.removeWhere((key, value) => value == null);
 
-      debugPrint('📤 Full SaveSurvey Payload:\n$body');
-
+      // --- DEBUGGING: Added extensive logging ---
       final bool isUpdating = surveyIdForEdit != null && surveyIdForEdit! > 0;
       final String endpoint = isUpdating
           ? ApiEndpoints.updatePreGateInSurvey
           : ApiEndpoints.insertPreGateInSurvey;
 
-      debugPrint("✅ Using endpoint: $endpoint (Is Updating: $isUpdating)");
+      debugPrint("===================== SAVING SURVEY =====================");
+      debugPrint("SURVEY ACTION: ${isUpdating ? 'UPDATE' : 'INSERT'}");
+      debugPrint("ENDPOINT: $endpoint");
+      // Using jsonEncode with an indent for readability
+      final prettyPrint = const JsonEncoder.withIndent('  ').convert(body);
+      debugPrint("PAYLOAD:\n$prettyPrint");
+      debugPrint("=========================================================");
 
       final response = await _apiService.postRequest(
         endpoint,
